@@ -57,6 +57,9 @@ void fmt_ast(ast* top_stmt, int depth) {
 	case AST_NUMBER:
 		fprintf(stdout, "AST_NUMBER(%lld)\n", ((ast_number*)top_stmt)->value);
 		break;
+	case AST_IDENT:
+		fprintf(stdout, "AST_IDENT(%s)\n", ((ast_ident*)top_stmt)->name->buffer);
+		break;
 	case AST_OP:
 		fprintf(stdout, "AST_OP(%s):\n", ((ast_op*)top_stmt)->op->buffer);
 		fmt_ast(((ast_op*)top_stmt)->lhs, depth + 1);

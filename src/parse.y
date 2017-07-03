@@ -111,6 +111,10 @@ expr            : expr op_add expr
                     {
                       $$ = new_ast_op("!=", $1, $3);
                     }
+                | var op_assign expr
+                    {
+                      $$ = new_ast_let($1, $3);
+                    }
                 | primary
                 ;
 
