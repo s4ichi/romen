@@ -10,10 +10,9 @@ int yyparse(parse_result*, parse_info*);
 
 static void usage(int exit_code) {
 	fprintf(exit_code ? stderr : stdout,
-		"Usage: romen [ -h ][ -i ][ -e <input_file> ][ -v ]\n\n"
+		"Usage: romen [ -h ][ -e <input_file> ][ -v ]\n\n"
 		"  -e input_file     Eval romen file\n"
 		"  -v                Print parse experession\n"
-		"  -i                Launch interpreter of romen\n"
 		"  -h                Print this help\n"
 		"\n"
 		"One of -e or -v must be specified.\n\n");
@@ -31,12 +30,30 @@ void romen_parse_init(parse_result* r, parse_info* p, exec_mode m) {
 }
 
 void parse_from_string(const char* s, parse_result* r, parse_info* p) {
-	int res;
+	int err;
 
 	yy_scan_string(s);
-	res = yyparse(r, p);
+	err = yyparse(r, p);
 
-	if (res == 1 || r->is_err == 1) {
+	if (err == 1 || r->is_err == 1) {
+		fprintf(stderr, "Parse Error\n");
+		exit(1);
+	}
+}
+
+void parse_from_file(const char* path, parse_result* r, parse_info* p) {
+	int err;
+
+	FILE* fp = fopen(path, "rb");
+	if (!fp) {
+		fprintf(stderr, "File open error\n");
+		exit(1);
+	}
+
+	yyrestart(fp);
+	err = yyparse(r, p);
+
+	if (err == 1 || r->is_err == 1) {
 		fprintf(stderr, "Parse Error\n");
 		exit(1);
 	}
@@ -49,7 +66,7 @@ void fmt_ast(ast* top_stmt, int depth) {
 	}
 
 	if (!top_stmt) {
-		fprintf(stdout, "NULL");
+		fprintf(stdout, "NULL\n");
 		return;
 	}
 
@@ -85,11 +102,12 @@ void fmt_ast(ast* top_stmt, int depth) {
 }
 
 int main(int argc, char** argv) {
+	int verbose = 0;
+	char* source = NULL;
+	exec_mode mode = MODE_FILE;
+
 	parse_result r;
 	parse_info p;
-
-	int verbose = 0;
-	exec_mode mode = MODE_FILE;
 
 	for (;;) {
 		int opt = getopt(argc, argv, "e:hiv");
@@ -100,12 +118,7 @@ int main(int argc, char** argv) {
 			break;
 		case 'e':
 			mode = MODE_EVAL;
-			parse_from_string(optarg, &r, &p);
-			break;
-		case 'i':
-			mode = MODE_REPL;
-			// TODO
-			usage(0);
+			source = optarg;
 			break;
 		case 'h':
 			usage(0);
@@ -115,17 +128,24 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	if (mode == MODE_FILE) {
-		// TODO
-		// open file and parse
+	romen_parse_init(&r, &p, mode);
+
+	if (mode == MODE_FILE && optind < argc) {
+		source = argv[optind];
+		parse_from_file(source, &r, &p);
+	} else if (mode == MODE_EVAL && source) {
+		parse_from_string(source, &r, &p);
+	} else {
+		fprintf(stderr, "No such file or source code");
+		exit(1);
 	}
 
-	if (verbose) {
-		fmt_ast(r.value, 0);
-	} else {
-		// TODO
-		// eval to e.value
-	}
+	if (verbose) fmt_ast(r.value, 0);
+
+	// TODO
+	// eval to e.value
+
+	ast_free(r.value);
 
 	return 0;
 }
