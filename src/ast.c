@@ -98,8 +98,8 @@ new_ast_func(ast_inner_string fname, ast* args, ast* body) {
 
 	return (ast*)af;
 }
-ast*
 
+ast*
 new_ast_func_call(ast* func, ast* args) {
 	ast_func_call* afc = malloc(sizeof(ast_func_call));
 

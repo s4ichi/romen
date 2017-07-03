@@ -20,7 +20,6 @@ static void usage(int exit_code) {
 	exit(exit_code);
 }
 
-
 void romen_parse_init(parse_result* r, parse_info* p, exec_mode m) {
 	r->is_err = 0;
 	r->value = NULL;
@@ -156,8 +155,7 @@ int main(int argc, char** argv) {
 
 	if (verbose) fmt_ast(r.value, 0);
 
-	// TODO
-	// eval to e.value
+	// TODO: eval to e.value
 
 	ast_free(r.value);
 
