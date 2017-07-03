@@ -98,6 +98,17 @@ new_ast_func(ast_inner_string fname, ast* args, ast* body) {
 
 	return (ast*)af;
 }
+ast*
+
+new_ast_func_call(ast* func, ast* args) {
+	ast_func_call* afc = malloc(sizeof(ast_func_call));
+
+	afc->type = AST_FUNC_CALL;
+	afc->func = func;
+	afc->args = args;
+
+	return (ast*)afc;
+}
 
 void
 ast_free(ast* a) {

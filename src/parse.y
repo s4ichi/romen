@@ -17,6 +17,7 @@
 %type <node> program stmts stmt_list stmt
 %type <node> expr primary block condition prim_number
 %type <node> opt_fargs fargs farg
+%type <node> opt_expr_args expr_args
 %type <inner_str> identifier var fname
 
 %token ident_let ident_fn
@@ -130,7 +131,44 @@ expr            : expr op_add expr
                     {
                       $$ = new_ast_let($1, $3);
                     }
+                | fname '(' opt_expr_args ')'
+                    {
+                      ast* func = new_ast_ident($1);
+                      $$ = new_ast_func_call(func, $3);
+                    }
+                | condition
                 | primary
+                ;
+
+opt_expr_args   : /* none */
+                    {
+                      $$ = NULL;
+                    }
+                | expr_args
+                    {
+                      $$ = $1;
+                    }
+                ;
+
+expr_args       : expr
+                    {
+                      $$ = new_ast_list();
+                      $$->type = AST_ARGS;
+                      if ($1) {
+                        add_ast_list($$, $1);
+                      }
+                    }
+                | expr_args ',' expr
+                    {
+                      $$ = $1;
+                      if ($3) {
+                        if ($1) {
+                          add_ast_list($$, $3);
+                        } else {
+                          $1 = $3;
+                        }
+                      }
+                    }
                 ;
 
 primary         : prim_number
@@ -138,7 +176,6 @@ primary         : prim_number
                     {
                       $$ = new_ast_ident($1);
                     }
-                | condition
                 ;
 
 condition       : '(' expr ')'

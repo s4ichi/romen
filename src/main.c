@@ -86,6 +86,10 @@ void fmt_ast(ast* top_stmt, int depth) {
 		fprintf(stdout, "AST_LET(%s):\n", ((ast_let*)top_stmt)->lhs->buffer);
 		fmt_ast(((ast_let*)top_stmt)->rhs, depth + 1);
 		break;
+	case AST_FUNC_CALL:
+		fprintf(stdout, "AST_FUNC_CALL(%s):\n", ((ast_ident*)((ast_func_call*)top_stmt)->func)->name->buffer);
+		fmt_ast(((ast_func_call*)top_stmt)->args, depth + 1);
+		break;
 	case AST_BLOCK:
 		fprintf(stdout, "AST_BLOCK:\n");
 		fmt_ast(((ast_block*)top_stmt)->body, depth + 1);
