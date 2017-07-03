@@ -87,6 +87,18 @@ new_ast_block(ast* ast_list) {
 	return (ast*)ab;
 }
 
+ast*
+new_ast_func(ast_inner_string fname, ast* args, ast* body) {
+	ast_func* af = malloc(sizeof(ast_func));
+
+	af->type = AST_FUNC;
+	af->name = fname;
+	af->args = args;
+	af->body = body;
+
+	return (ast*)af;
+}
+
 void
 ast_free(ast* a) {
 	int i;

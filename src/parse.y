@@ -16,9 +16,10 @@
 
 %type <node> program stmts stmt_list stmt
 %type <node> expr primary block condition prim_number
-%type <inner_str> identifier var
+%type <node> opt_fargs fargs farg
+%type <inner_str> identifier var fname
 
-%token ident_let
+%token ident_let ident_fn
 %token op_add op_sub op_mul op_div op_eq op_neq op_assign
 %token identifier prim_number
 
@@ -80,9 +81,16 @@ stmt_list       : stmt
 var             : identifier
                 ;
 
+fname           : identifier
+                ;
+
 stmt            : ident_let var op_assign expr
                     {
                       $$ = new_ast_let($2, $4);
+                    }
+                | ident_fn fname '(' opt_fargs ')' block
+                    {
+                      $$ = new_ast_func($2, $4, $6);
                     }
                 | expr
                 ;
@@ -131,12 +139,49 @@ block           : '{' stmts '}'
                     {
                       $$ = new_ast_block($2);
                     }
+                ;
 
 condition       : '(' expr ')'
                     {
                       $$ = $2;
                     }
                 ;
+
+opt_fargs       : /* none */
+                    {
+                      $$ = NULL;
+                    }
+                | fargs
+                    {
+                      $$ = $1;
+                    }
+                ;
+
+fargs           : farg
+                    {
+                      $$ = new_ast_list();
+                      $$->type = AST_ARGS;
+                      if ($1) {
+                        add_ast_list($$, $1);
+                      }
+                    }
+                | fargs ',' farg
+                    {
+                      $$ = $1;
+                      if ($3) {
+                        if ($1) {
+                          add_ast_list($$, $3);
+                        } else {
+                          $1 = $3;
+                        }
+                      }
+                    }
+                ;
+
+farg            : var
+                    {
+                      $$ = new_ast_ident($1);
+                    }
 
 opt_endterms    : /* none */
                 | endterms

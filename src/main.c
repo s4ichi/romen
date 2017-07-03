@@ -90,6 +90,16 @@ void fmt_ast(ast* top_stmt, int depth) {
 		fprintf(stdout, "AST_BLOCK:\n");
 		fmt_ast(((ast_block*)top_stmt)->body, depth + 1);
 		break;
+	case AST_FUNC:
+		fprintf(stdout, "AST_FUNC(%s):\n", ((ast_func*)top_stmt)->name->buffer);
+		fmt_ast(((ast_func*)top_stmt)->args, depth + 1);
+		fmt_ast(((ast_func*)top_stmt)->body, depth + 1);
+		break;
+	case AST_ARGS:
+		fprintf(stdout, "AST_ARGS:\n");
+		for (i = 0; i < ((ast_list*)top_stmt)->size; i++)
+			fmt_ast(((ast_list*)top_stmt)->stmts[i], depth + 1);
+		break;
 	case AST_LIST:
 		fprintf(stdout, "AST_LIST:\n");
 		for (i = 0; i < ((ast_list*)top_stmt)->size; i++)

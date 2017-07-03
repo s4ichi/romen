@@ -25,10 +25,12 @@ IDENT  {CHAR}{REST}*
 "="           { return op_assign; };
 "\n"          { return '\n'; };
 ";"           { return ';'; };
+","           { return ','; };
 "#"[^\n]*"\n" { return '\n'; };
 [(){}@]       { return yytext[0]; };
 
 let { return ident_let; };
+fn  { return ident_fn; };
 
 {IDENT} {
         yylval->inner_str = new_ast_inner_string(yytext, yyleng);
