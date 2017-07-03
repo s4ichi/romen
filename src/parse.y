@@ -92,7 +92,14 @@ stmt            : ident_let var op_assign expr
                     {
                       $$ = new_ast_func($2, $4, $6);
                     }
+                | block
                 | expr
+                ;
+
+block           : '{' stmts '}'
+                    {
+                      $$ = new_ast_block($2);
+                    }
                 ;
 
 expr            : expr op_add expr
@@ -132,13 +139,6 @@ primary         : prim_number
                       $$ = new_ast_ident($1);
                     }
                 | condition
-                | block
-                ;
-
-block           : '{' stmts '}'
-                    {
-                      $$ = new_ast_block($2);
-                    }
                 ;
 
 condition       : '(' expr ')'
