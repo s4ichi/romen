@@ -15,19 +15,27 @@ Romen is lightweight object oriented language, and has static memory inference m
 Syntax is still under consideration.
 
 ```
+fn pow(a, b) {
+    // a, b -> allocate stack
+    // z -> allocate heap
+    let z = a ** b
+    return z
+
+    // free a, b
+}
+
 {
-    let x = 10 # allocate in stack
-    let z = null # allocate in stack
+    // x, y -> allocate stack
+    let x = 10
+    let y = 5
 
     {
-        let y = 5 # allocate in heap ( collect by GC )
-        z = y
-
-        x = x + y # valid
+        // pow(x, y) -> in heap
+        let r = pow(x, y)
     }
 
-    x = x + y # invalid
-    x = x + z # valid
+    // garbage collect `pow(x, y)` later
+    // free x, y
 }
 ```
 
