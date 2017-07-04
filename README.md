@@ -13,30 +13,42 @@ Romen is lightweight object oriented language, and has static memory inference m
 ## Syntax[WIP]
 
 Syntax is still under consideration.
+`obj(a)` represents object that aliased to variable `a`.
+
 
 ```
-fn pow(a, b) {
-    // a, b -> allocate stack
-    // z -> allocate heap
-    let z = a ** b
-    return z
-
-    // free a, b
-}
-
 {
-    // x, y -> allocate stack
-    let x = 10
-    let y = 5
+    // obj(g) = NULL
+    let g;
 
-    {
-        // pow(x, y) -> in heap
-        let r = pow(x, y)
+    fn pow(a, b) {
+        // obj(a), obj(b) -> allocate stack
+        // obj(z) -> allocate heap
+        let z = a ** b
+        return z
+
+        // free obj(a), obj(b)
     }
 
-    // garbage collect `pow(x, y)` later
-    // free x, y
+    {
+        // obj(x) -> allocate stack
+        // obj(y) -> allocate heap
+        let x = 10
+        let y = 5
+
+        // copy alias from y to g
+        g = &y
+
+        {
+            // obj(r) -> in heap
+            let r = pow(x, y)
+        }
+
+        // free obj(x)
+    }
 }
+
+// garbage collect obj(y) = obj(g), obj(r) at later
 ```
 
 ## Build
