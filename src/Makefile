@@ -26,7 +26,7 @@ ast.o : y.tab.h lex.yy.h
 
 $(TARGET) : $(OBJS)
 	mkdir -p "$$(dirname $(TARGET))"
-	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET)
+	$(CC) $(CFLAGS) $(OBJS) -o $(TARGET) -lgc
 
 clean :
 	rm -f y.tab.c y.tab.h

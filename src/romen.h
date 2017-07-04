@@ -14,6 +14,8 @@ typedef enum {
 #include <string.h>
 #include <unistd.h>
 
+#include <gc/gc.h>
+
 typedef struct parse_result {
 	int is_err;
 	void* value;
