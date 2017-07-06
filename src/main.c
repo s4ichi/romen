@@ -122,6 +122,8 @@ int main(int argc, char** argv) {
 	parse_result r;
 	parse_info p;
 
+	romen_env env;
+
 	for (;;) {
 		int opt = getopt(argc, argv, "e:hiv");
 		if (opt == -1) break;
@@ -154,6 +156,11 @@ int main(int argc, char** argv) {
 	}
 
 	if (verbose) fmt_ast(r.value, 0);
+
+	// Initialize environment of execution time.
+	romen_gc_init();
+	romen_env_init(&env);
+	romen_value_init(&env);
 
 	// TODO: eval to e.value
 
