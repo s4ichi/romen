@@ -16,6 +16,8 @@ typedef enum {
 
 #include <gc/gc.h>
 
+// ----- Parser, Lexer Definitions -----
+
 typedef struct parse_result {
 	int is_err;
 	void* value;
@@ -25,5 +27,10 @@ typedef struct parse_info {
 	int lineno;
 	exec_mode mode;
 } parse_info;
+extern void romen_parse_init(parse_result*, parse_info*m, exec_mode);
+extern void parse_from_string(const char*, parse_result*m, parse_info*);
+extern void parse_from_file(const char*, parse_result*m, parse_info*);
+
+// ----- /Parser, Lexer Definitions -----
 
 #endif
