@@ -18,7 +18,7 @@ typedef enum {
 // Also see http://www.hboehm.info/gc/gcinterface.html
 #include <gc/gc.h>
 
-// ----- Parser, Lexer Definitions -----
+// ----- Parser, Lexer Definitions ----- //
 
 typedef struct parse_result {
 	int is_err;
@@ -34,20 +34,9 @@ extern void romen_parse_init(parse_result*, parse_info*m, exec_mode);
 extern void parse_from_string(const char*, parse_result*m, parse_info*);
 extern void parse_from_file(const char*, parse_result*m, parse_info*);
 
-// ----- /Parser, Lexer Definitions -----
+// ----- /Parser, Lexer Definitions ----- //
 
-// ---- Environment Definitions -----
-
-typedef struct romen_env {
-
-} romen_env;
-
-extern void romen_env_init(romen_env*);
-
-// ---- /Environment Definitions -----
-
-
-// ---- Value Definitions -----
+// ---- Value Definitions ----- //
 
 typedef struct rv_number {
 	long long val;
@@ -59,11 +48,24 @@ typedef struct romen_value {
 	} as;
 } romen_value;
 
+// ---- Environment Definitions ----- //
+
+typedef char* env_key;
+typedef romen_value* env_value;
+
+typedef struct romen_env {
+
+} romen_env;
+
+// ---- Value Functions ----- //
+
 extern void romen_gc_init();
 extern void romen_value_init(romen_env*);
-
 extern romen_value* new_rv_number(long long);
 
-// ---- /Value Definitions -----
+// ---- Environment Functions ----- //
+
+extern void romen_env_init(romen_env*);
+
 
 #endif
