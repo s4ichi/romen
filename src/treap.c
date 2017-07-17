@@ -26,42 +26,44 @@ Treap* treap_rotate(Treap *t, const int balance) {
 
 	if (balance) {
 		s = t->left;
-		t->left = t->right;
-		t->right = t;
+		t->left = s->right;
+		s->right = t;
 	} else {
 		s = t->right;
-		t->right = t->left;
-		t->left = t;
+		t->right = s->left;
+		s->left = t;
 	}
 
 	return s;
 }
 
 Treap* treap_find(Treap* t, const treap_key k) {
-	if (!t || t->key == k) return t;
+	if (!t || strcmp(t->key, k) == 0) return t;
 
-	if (strcmp(t->key, k) < 0)
+	if (strcmp(t->key, k) > 0)
 		return treap_find(t->left, k);
 	else
 		return treap_find(t->right, k);
 }
 
 Treap* treap_insert(Treap* t, const treap_key k, const treap_value v) {
-	int balance = strcmp(t->key, k);
+	int balance;
 
 	if (!t) return new_treap(k, v);
+
+	balance = strcmp(t->key, k);
 	if (balance == 0) return t;
 
 	if (balance > 0) {
 		t->left = treap_insert(t->left, k, v);
 
 		if (t->priority > t->left->priority)
-			treap_rotate(t, 1);
+			t = treap_rotate(t, 1);
 	} else {
 		t->right = treap_insert(t->right, k, v);
 
 		if (t->priority > t->right->priority)
-			treap_rotate(t, 0);
+			t = treap_rotate(t, 0);
 	}
 
 	return t;
@@ -76,7 +78,7 @@ Treap* treap_erase(Treap* t, const treap_key k) {
 	if (balance > 0) {
 		t->left = treap_erase(t->left, k);
 		return t;
-	} else {
+	} else if (balance < 0) {
 		t->right = treap_erase(t->right, k);
 		return t;
 	}
