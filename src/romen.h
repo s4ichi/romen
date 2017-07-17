@@ -19,7 +19,6 @@ typedef enum {
 #include <gc/gc.h>
 
 // ----- Parser, Lexer Definitions ----- //
-
 typedef struct parse_result {
 	int is_err;
 	void* value;
@@ -34,10 +33,8 @@ extern void romen_parse_init(parse_result*, parse_info*m, exec_mode);
 extern void parse_from_string(const char*, parse_result*m, parse_info*);
 extern void parse_from_file(const char*, parse_result*m, parse_info*);
 
-// ----- /Parser, Lexer Definitions ----- //
 
 // ---- Value Definitions ----- //
-
 typedef struct rv_number {
 	long long val;
 } rv_number;
@@ -48,24 +45,50 @@ typedef struct romen_value {
 	} as;
 } romen_value;
 
-// ---- Environment Definitions ----- //
 
+// ---- Environment Definitions ----- //
 typedef char* env_key;
 typedef romen_value* env_value;
 
-typedef struct romen_env {
+typedef env_key treap_key;
+typedef env_value treap_value;
 
+// key-value algorithm 'Treap'
+// Also see "treap.c"
+typedef struct Treap {
+	int priority;
+
+	treap_key key;
+	treap_value value;
+
+	struct Treap* left;
+	struct Treap* right;
+} Treap;
+
+extern Treap* new_treap(const treap_key, const treap_value);
+extern Treap* treap_rotate(Treap*, const int);
+extern Treap* treap_find(Treap*, const treap_key);
+extern Treap* treap_insert(Treap*, const treap_key, const treap_value);
+extern Treap* treap_erase(Treap*, const treap_key);
+
+typedef struct romen_env {
+	Treap* as;
+	struct romen_env* next;
 } romen_env;
 
-// ---- Value Functions ----- //
 
+// ---- Value Functions ----- //
 extern void romen_gc_init();
 extern void romen_value_init(romen_env*);
 extern romen_value* new_rv_number(long long);
 
+
 // ---- Environment Functions ----- //
-
 extern void romen_env_init(romen_env*);
-
+extern romen_env* new_env(void);
+extern void env_add(romen_env*, const env_key, const env_value);
+extern void env_delete(romen_env*, const env_key);
+extern env_value env_find(romen_env*, const env_key);
+extern env_value env_find_by_current(romen_env*, const env_key);
 
 #endif

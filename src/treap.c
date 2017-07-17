@@ -6,7 +6,7 @@
 //   - erase cost: O(log n)
 //   - find cost: O(log n)
 
-#include "treap.h"
+#include "romen.h"
 
 Treap* new_treap(const treap_key k, const treap_value v) {
 	Treap* t = (Treap*)malloc(sizeof(Treap));
@@ -21,7 +21,7 @@ Treap* new_treap(const treap_key k, const treap_value v) {
 	return t;
 }
 
-Treap* rotate(Treap *t, const int balance) {
+Treap* treap_rotate(Treap *t, const int balance) {
 	Treap* s;
 
 	if (balance) {
@@ -37,48 +37,47 @@ Treap* rotate(Treap *t, const int balance) {
 	return s;
 }
 
-Treap* find(Treap* t, const treap_key k) {
+Treap* treap_find(Treap* t, const treap_key k) {
 	if (!t || t->key == k) return t;
 
 	if (strcmp(t->key, k) < 0)
-		return find(t->left, k);
+		return treap_find(t->left, k);
 	else
-		return find(t->right, k);
-
+		return treap_find(t->right, k);
 }
 
-Treap* insert(Treap* t, const treap_key k, const treap_value v) {
+Treap* treap_insert(Treap* t, const treap_key k, const treap_value v) {
 	int balance = strcmp(t->key, k);
 
 	if (!t) return new_treap(k, v);
 	if (balance == 0) return t;
 
 	if (balance > 0) {
-		t->left = insert(t->left, k, v);
+		t->left = treap_insert(t->left, k, v);
 
 		if (t->priority > t->left->priority)
-			rotate(t, 1);
+			treap_rotate(t, 1);
 	} else {
-		t->right = insert(t->right, k, v);
+		t->right = treap_insert(t->right, k, v);
 
 		if (t->priority > t->right->priority)
-			rotate(t, 0);
+			treap_rotate(t, 0);
 	}
 
 	return t;
 }
 
 
-Treap* erase(Treap* t, const treap_key k) {
+Treap* treap_erase(Treap* t, const treap_key k) {
 	int balance = strcmp(t->key, k);
 
 	if (!t) return NULL;
 
 	if (balance > 0) {
-		t->left = erase(t->left, k);
+		t->left = treap_erase(t->left, k);
 		return t;
 	} else {
-		t->right = erase(t->right, k);
+		t->right = treap_erase(t->right, k);
 		return t;
 	}
 
@@ -86,16 +85,16 @@ Treap* erase(Treap* t, const treap_key k) {
 		return NULL;
 
 	if (!t->left)
-		t = rotate(t, 0);
+		t = treap_rotate(t, 0);
 	else if (!t->right)
-		t = rotate(t, 1);
+		t = treap_rotate(t, 1);
 	else {
 		if (t->left->priority < t->right->priority)
-			t = rotate(t, 0);
+			t = treap_rotate(t, 0);
 		else
-			t = rotate(t, 1);
+			t = treap_rotate(t, 1);
 
-		t = erase(t, k);
+		t = treap_erase(t, k);
 	}
 
 	return t;
