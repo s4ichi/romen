@@ -1,6 +1,8 @@
 #ifndef ROMEN_H
 #define ROMEN_H
 
+// #define DEBUG
+
 typedef enum {
 	MODE_REPL,
 	MODE_FILE,
@@ -17,6 +19,8 @@ typedef enum {
 // Use boehmGC
 // Also see http://www.hboehm.info/gc/gcinterface.html
 #include <gc/gc.h>
+
+#include "ast.h"
 
 // ----- Parser, Lexer Definitions ----- //
 typedef struct parse_result {
@@ -71,11 +75,12 @@ extern Treap* treap_find(Treap*, const treap_key);
 extern Treap* treap_insert(Treap*, const treap_key, const treap_value);
 extern Treap* treap_erase(Treap*, const treap_key);
 
+extern void fmt_treap(Treap*, int);
+
 typedef struct romen_env {
 	Treap* as;
 	struct romen_env* next;
 } romen_env;
-
 
 // ---- Value Functions ----- //
 extern void romen_gc_init();
@@ -85,10 +90,20 @@ extern romen_value* new_rv_number(long long);
 
 // ---- Environment Functions ----- //
 extern void romen_env_init(romen_env*);
+
 extern romen_env* new_env(void);
-extern void env_add(romen_env*, const env_key, const env_value);
-extern void env_delete(romen_env*, const env_key);
+extern romen_env* env_add(romen_env*, const env_key, const env_value);
+extern romen_env* env_delete(romen_env*, const env_key);
 extern env_value env_find(romen_env*, const env_key);
 extern env_value env_find_by_current(romen_env*, const env_key);
+
+extern romen_env* env_pop(romen_env*);
+extern romen_env* env_push(romen_env*, romen_env*);
+
+extern void fmt_env(romen_env*, int);
+
+
+// ---- Check Functions ---- //
+extern void binding_check(romen_env*, ast*, int);
 
 #endif

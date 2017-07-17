@@ -6,6 +6,7 @@
 //   - erase cost: O(log n)
 //   - find cost: O(log n)
 
+#include <stdio.h>
 #include "romen.h"
 
 Treap* new_treap(const treap_key k, const treap_value v) {
@@ -100,4 +101,21 @@ Treap* treap_erase(Treap* t, const treap_key k) {
 	}
 
 	return t;
+}
+
+void fmt_treap(Treap* t, int depth) {
+	int i;
+
+	if (!t) return;
+
+	for (i = 0; i < depth; i++)
+		fprintf(stdout, "\t");
+
+	fprintf(stdout, "Key: %s\n", t->key);
+
+	if (t->left)
+		fmt_treap(t->left, depth);
+
+	if (t->right)
+		fmt_treap(t->right, depth);
 }

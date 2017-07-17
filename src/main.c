@@ -162,6 +162,12 @@ int main(int argc, char** argv) {
 	romen_env_init(&env);
 	romen_value_init(&env);
 
+	// checking phase
+	binding_check(&env, r.value, 0);
+
+	fprintf(stdout, "GLOBAL ENV:\n");
+	fmt_env(&env, 1);
+
 	// TODO: eval to e.value
 
 	ast_free(r.value);
