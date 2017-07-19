@@ -155,7 +155,10 @@ int main(int argc, char** argv) {
 		exit(1);
 	}
 
-	if (verbose) fmt_ast(r.value, 0);
+	if (verbose) {
+		fprintf(stdout, "Verbose print...\n");
+		fmt_ast(r.value, 0);
+	}
 
 	// Initialize environment of execution time.
 	romen_gc_init();
@@ -163,6 +166,7 @@ int main(int argc, char** argv) {
 	romen_value_init(&env);
 
 	// checking phase
+	fprintf(stdout, "Checking variable binding...\n");
 	binding_check(&env, r.value, 0);
 
 	fprintf(stdout, "GLOBAL ENV:\n");
