@@ -53,10 +53,10 @@ void binding_check(romen_env* env, ast* top_stmt, int depth) {
 		break;
 	case AST_FUNC:
 		fprintf(stdout, "AST_FUNC(%s):\n", ((ast_func*)top_stmt)->name->buffer);
-		binding_check(env, ((ast_func*)top_stmt)->args, depth + 1);
-		binding_check(env, ((ast_func*)top_stmt)->body, depth + 1);
 
 		env = env_add(env, ((ast_func*)top_stmt)->name->buffer, new_rv_number(1));
+
+		env = env_push(env, (romen_env*)new_env());
 
 		ast_list* arg_list = (ast_list*)((ast_func*)top_stmt)->args;
 		for (i = 0; i < arg_list->size; i++) {
@@ -67,6 +67,15 @@ void binding_check(romen_env* env, ast* top_stmt, int depth) {
 
 			env = env_add(env, ((ast_ident*)arg_list->stmts[i])->name->buffer, new_rv_number(0));
 		}
+
+		binding_check(env, ((ast_block*)(((ast_func*)top_stmt)->body))->body, depth + 1);
+
+		for (i = 0; i < depth + 1; i++)
+			fprintf(stdout, "\t");
+		fprintf(stdout, "ENV:\n");
+
+		fmt_env(env, depth + 2);
+		env = env_pop(env);
 
 		break;
 	case AST_ARGS:
