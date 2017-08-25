@@ -8,6 +8,7 @@ typedef enum {
 	AST_LET,
 	AST_OP,
 	AST_IDENT,
+	AST_CLASS,
 	AST_FUNC,
 	AST_FUNC_CALL,
 	AST_ARGS,
@@ -47,6 +48,12 @@ typedef struct {
 
 typedef struct {
 	ast_type type;
+	ast_inner_string name;
+	ast* body;
+} ast_class;
+
+typedef struct {
+	ast_type type;
 	ast_inner_string lhs;
 	ast* rhs;
 } ast_let;
@@ -76,6 +83,7 @@ extern ast* new_ast_number(long long);
 extern ast* new_ast_ident(ast_inner_string);
 extern ast* new_ast_list(void);
 extern void add_ast_list(ast*, ast*);
+extern ast* new_ast_class(ast_inner_string, ast*);
 extern ast* new_ast_let(ast_inner_string, ast*);
 extern ast* new_ast_block(ast*);
 extern ast* new_ast_op(const char*, ast*, ast*);

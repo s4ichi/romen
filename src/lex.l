@@ -29,6 +29,7 @@ IDENT  {CHAR}{REST}*
 "#"[^\n]*"\n" { return '\n'; };
 [(){}@]       { return yytext[0]; };
 
+class { return ident_class; };
 let { return ident_let; };
 fn  { return ident_fn; };
 

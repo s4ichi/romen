@@ -55,6 +55,17 @@ add_ast_list(ast* parent, ast* child) {
 }
 
 ast*
+new_ast_class(ast_inner_string cname, ast* body) {
+	ast_class* ac = malloc(sizeof(ast_class));
+
+	ac->type = AST_CLASS;
+	ac->name = cname;
+	ac->body = body;
+
+	return (ast*)ac;
+}
+
+ast*
 new_ast_let(ast_inner_string lhs, ast* rhs) {
 	ast_let* al = malloc(sizeof(ast_let));
 
