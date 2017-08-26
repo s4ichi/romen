@@ -59,6 +59,14 @@ Clone repository and run make to build:
 make
 ```
 
+## Run
+
+Current version able to traverse AST and binding check.
+
+```sh
+./bin/romen -v -e 'let x = 3; { fn hoge(a){ let k = a; }; let y = 2; let z = x + y; let g = 3; }'
+```
+
 ## LICENSE
 MIT
 
