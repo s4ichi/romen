@@ -66,6 +66,17 @@ new_ast_class(ast_inner_string cname, ast* body) {
 }
 
 ast*
+new_ast_module(ast_inner_string mname, ast* body) {
+	ast_module* am = malloc(sizeof(ast_module));
+
+	am->type = AST_MODULE;
+	am->name = mname;
+	am->body = body;
+
+	return (ast*)am;
+}
+
+ast*
 new_ast_let(ast_inner_string lhs, ast* rhs) {
 	ast_let* al = malloc(sizeof(ast_let));
 

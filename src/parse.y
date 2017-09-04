@@ -18,9 +18,9 @@
 %type <node> expr primary block condition prim_number
 %type <node> opt_fargs fargs farg
 %type <node> opt_expr_args expr_args
-%type <inner_str> identifier var fname cname
+%type <inner_str> identifier var fname cname mname
 
-%token ident_let ident_fn ident_class
+%token ident_let ident_fn ident_class ident_module
 %token op_add op_sub op_mul op_div op_eq op_neq op_assign
 %token identifier prim_number
 
@@ -85,7 +85,10 @@ var             : identifier
 fname           : identifier
                 ;
 
-cname       : identifier
+cname           : identifier
+                ;
+
+mname           : identifier
                 ;
 
 stmt            : ident_let var op_assign expr
@@ -99,6 +102,10 @@ stmt            : ident_let var op_assign expr
                 | ident_class cname block
                     {
                       $$ = new_ast_class($2, $3);
+                    }
+                | ident_module mname block
+                    {
+                      $$ = new_ast_module($2, $3);
                     }
                 | block
                 | expr

@@ -30,6 +30,7 @@ IDENT  {CHAR}{REST}*
 [(){}@]       { return yytext[0]; };
 
 class { return ident_class; };
+module { return ident_module; };
 let { return ident_let; };
 fn  { return ident_fn; };
 

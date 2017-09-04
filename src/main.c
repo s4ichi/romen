@@ -89,6 +89,10 @@ void fmt_ast(ast* top_stmt, int depth) {
 		fprintf(stdout, "AST_CLASS(%s):\n", ((ast_class*)top_stmt)->name->buffer);
 		fmt_ast(((ast_class*)top_stmt)->body, depth + 1);
 		break;
+	case AST_MODULE:
+		fprintf(stdout, "AST_MODULE(%s):\n", ((ast_module*)top_stmt)->name->buffer);
+		fmt_ast(((ast_module*)top_stmt)->body, depth + 1);
+		break;
 	case AST_FUNC_CALL:
 		fprintf(stdout, "AST_FUNC_CALL(%s):\n", ((ast_ident*)((ast_func_call*)top_stmt)->func)->name->buffer);
 		fmt_ast(((ast_func_call*)top_stmt)->args, depth + 1);
