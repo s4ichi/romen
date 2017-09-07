@@ -48,7 +48,7 @@ env_value env_find(romen_env* env, const env_key k) {
 	return val;
 }
 
-env_value env_find_by_curret(romen_env* env, const env_key k) {
+env_value env_find_by_current(romen_env* env, const env_key k) {
 	return (env_value)treap_find(env->as, k);
 }
 
