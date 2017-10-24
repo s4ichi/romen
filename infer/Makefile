@@ -1,0 +1,14 @@
+#!/Usr/bin/make -f
+
+SRC= main.ml
+COMPONENT= main.ml
+TARGET= ../bin/infer
+
+all: $(TARGET)
+
+$(TARGET): $(COMPONENT)
+	ocamlfind ocamlmktop -annot -o $(TARGET) $(COMPONENT)
+
+clean:
+	/bin/rm -f $(TARGET)
+	/bin/rm -f ./*.annot
