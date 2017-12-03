@@ -1,5 +1,8 @@
 *.d
 *.o
+*.annot
+*.cmo
+*.cmi
 a.out
 /src/y.tab.c
 /src/lex.yy.c
