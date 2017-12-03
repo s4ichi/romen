@@ -11,3 +11,4 @@ a.out
 /src/parse.tab.c
 /src/y.output
 /bin
+/infer/infer

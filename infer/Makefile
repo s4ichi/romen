@@ -2,7 +2,7 @@
 
 SRC= main.ml
 COMPONENT= main.ml
-TARGET= ../bin/infer
+TARGET= infer
 
 all: $(TARGET)
 
