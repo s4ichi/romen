@@ -329,15 +329,14 @@ module RRomenExp = struct
          (prefix d) ^ "(\n" ^ (String.concat ", " (List.map (fun exp -> fmt exp 0) args)) ^ "\n" ^ (prefix d) ^ "),\n" ^
            (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
     | RBlock (exps, (tp, e)) ->
-       (prefix d) ^ "RBlock( {\n" ^ (String.concat ",\n" (List.map (fun exp -> fmt exp (d+1)) exps)) ^ "\n" ^ (prefix d) ^ "},\n" ^
+       (prefix d) ^ "RBlock({\n" ^ (String.concat ",\n" (List.map (fun exp -> fmt exp (d+1)) exps)) ^ "\n" ^ (prefix d) ^ "},\n" ^
          (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
     | RReg (rgs, blk, (tp, e)) ->
-       (prefix d) ^ "RReg((" ^ (String.concat ", " (List.map (fun exp -> RegVar.fmt exp) (RegVarSet.elements rgs))) ^ "),\n" ^
+       (prefix d) ^ "RReg([" ^ (String.concat ", " (List.map (fun exp -> RegVar.fmt exp) (RegVarSet.elements rgs))) ^ "],\n" ^
          (fmt blk (d+1)) ^ ",\n" ^
            (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
     | RLet (s, exp, (tp, e)) ->
-       (prefix d) ^ "RLet(" ^ (s) ^ ",\n" ^ (fmt exp (d+1)) ^ ",\n" ^
-         (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
+       (prefix d) ^ "RLet(" ^ (s) ^ ", " ^ (fmt exp 0) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "))"
     | RFn (fn, rargs, args, exp, (tp, e)) ->
        (prefix d) ^ "RFn(" ^ (fn) ^",\n(" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "\n" ^ (prefix d) ^ "),\n" ^
          (prefix d) ^ "(\n" ^ (String.concat ", " args) ^ "\n" ^ (prefix d) ^ "),\n" ^ (fmt exp (d+1)) ^
@@ -422,8 +421,6 @@ module Translator : TRANSLATOR = struct
            RRomenExp.RCall(fname, rpol, rargs, ((ty', rv), eff'))
          )
       | RomenExp.Block(exps) ->
-         (* 実行前の環境と実行後の型（実行結果を格納するリージョン）に含まれているリージョン変数 *)
-         (* を、expressionのエフェクトから取り除く。 *)
          let exps' = List.rev (walk_list exps env fenv subst) in
          let (env', fenv', subst', tlexp) = List.hd exps' in
          let twp = RRomenExp.ty_with_place tlexp in
