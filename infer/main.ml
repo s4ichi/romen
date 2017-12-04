@@ -53,6 +53,13 @@ module Effect = struct
     | EVar of EffVar.t
     | ELit of RegVar.t
 
+  let fmt eff =
+    match eff with
+    | EVar(s) ->
+       "EVar(" ^ (EffVar.fmt s) ^ ")"
+    | ELit(r) ->
+       "ELit(" ^ (RegVar.fmt r) ^ ")"
+
   let fev eff =
     match eff with
     | EVar(e) -> EffVarSet.singleton e
@@ -315,32 +322,40 @@ module RRomenExp = struct
   let rec fmt e d =
     let prefix k = String.make k '\t' in
     match e with
-    | RIndefinite ((tp, e)) ->
-       (prefix d) ^ "RIndefinite((" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RIntLit (i, (tp, e)) ->
-       (prefix d) ^ "RInt(" ^ (string_of_int i) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RVar (s, (tp, e)) ->
-       (prefix d) ^ "RVar(" ^ (s) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "))"
-    | ROp (exp1, exp2, (tp, e)) ->
+    | RIndefinite ((tp, eff)) ->
+       (prefix d) ^ "RIndefinite((" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RIntLit (i, (tp, eff)) ->
+       (prefix d) ^ "RInt(" ^ (string_of_int i) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RVar (s, (tp, eff)) ->
+       (prefix d) ^ "RVar(" ^ (s) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | ROp (exp1, exp2, (tp, eff)) ->
        (prefix d) ^ "ROp(\n" ^ (fmt exp1 (d+1)) ^ ",\n" ^ (fmt exp2 (d+1)) ^ ",\n" ^
-         (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RCall (fn, rargs, args, (tp, e)) ->
-       (prefix d) ^ "RCall(" ^ (fn) ^",\n(" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "\n" ^ (prefix d) ^ "),\n" ^
-         (prefix d) ^ "(\n" ^ (String.concat ", " (List.map (fun exp -> fmt exp 0) args)) ^ "\n" ^ (prefix d) ^ "),\n" ^
-           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RBlock (exps, (tp, e)) ->
+         (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+           (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RCall (fn, rargs, args, (tp, eff)) ->
+       (prefix d) ^ "RCall(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), \n" ^
+         (prefix (d+1)) ^ "[" ^ (String.concat ", " (List.map (fun exp -> fmt exp 0) args)) ^ "],\n" ^
+           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RBlock (exps, (tp, eff)) ->
        (prefix d) ^ "RBlock({\n" ^ (String.concat ",\n" (List.map (fun exp -> fmt exp (d+1)) exps)) ^ "\n" ^ (prefix d) ^ "},\n" ^
-         (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RReg (rgs, blk, (tp, e)) ->
+         (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+           (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RReg (rgs, blk, (tp, eff)) ->
        (prefix d) ^ "RReg([" ^ (String.concat ", " (List.map (fun exp -> RegVar.fmt exp) (RegVarSet.elements rgs))) ^ "],\n" ^
          (fmt blk (d+1)) ^ ",\n" ^
-           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RLet (s, exp, (tp, e)) ->
+           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RLet (s, exp, (tp, eff)) ->
        (prefix d) ^ "RLet(" ^ (s) ^ ", " ^ (fmt exp 0) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "))"
-    | RFn (fn, rargs, args, exp, (tp, e)) ->
-       (prefix d) ^ "RFn(" ^ (fn) ^",\n(" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "\n" ^ (prefix d) ^ "),\n" ^
-         (prefix d) ^ "(\n" ^ (String.concat ", " args) ^ "\n" ^ (prefix d) ^ "),\n" ^ (fmt exp (d+1)) ^
-           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "))"
+    | RFn (fn, rargs, args, exp, (tp, eff)) ->
+       (prefix d) ^ "RFn(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), (" ^
+         (String.concat ", " args) ^ "),\n" ^ (fmt exp (d+1)) ^ "\n" ^
+           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
 end
 
 module type TRANSLATOR = sig
