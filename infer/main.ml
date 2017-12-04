@@ -247,17 +247,17 @@ module VarStream = struct
   let b = ref 0
   let c = ref 0
 
-  let fresh_type_var =
+  let fresh_type_var () =
     a := (!a) + 1; AnnotatedType.TVar(TyVar.new_var !a)
 
-  let fresh_reg_var =
+  let fresh_reg_var () =
     b := (!b) + 1; RegVar.new_var !b
 
-  let fresh_eff_var =
+  let fresh_eff_var () =
     c := (!c) + 1; EffVar.new_var !c
 
-  let fresh_ty_with_place =
-    (fresh_type_var, fresh_reg_var)
+  let fresh_ty_with_place () =
+    (fresh_type_var (), fresh_reg_var ())
 end
 
 module RRomenExp = struct
@@ -367,7 +367,7 @@ module Translator : TRANSLATOR = struct
            RRomenExp.RIndefinite((AnnotatedType.TAny, h), EffSet.singleton (Effect.ELit(h)))
          )
       | RomenExp.IntLit(n) ->
-         let rv = VarStream.fresh_reg_var in
+         let rv = VarStream.fresh_reg_var () in
          (
            env,
            fenv,
@@ -385,7 +385,7 @@ module Translator : TRANSLATOR = struct
       | RomenExp.Op(exp1, exp2) ->
          let (env1, fenv1, subst1, rexp1) = walk exp1 env fenv subst in
          let (env2, fenv2, subst2, rexp2) = walk exp1 env1 fenv1 subst1 in
-         let rv' = VarStream.fresh_reg_var in
+         let rv' = VarStream.fresh_reg_var () in
          let subst3 = Substitute.compose subst2 subst1 in (* これまじでいる？ *)
          let (ty, _) = RRomenExp.ty_with_place rexp1 (* 動的型付けだけど一応検査するべき *) in
          (
@@ -395,7 +395,7 @@ module Translator : TRANSLATOR = struct
            RRomenExp.ROp(rexp1, rexp2, ((ty, rv'), EffSet.singleton (Effect.ELit(rv'))))
          )
       | RomenExp.Call(fname, args) ->
-         let rv = VarStream.fresh_reg_var in
+         let rv = VarStream.fresh_reg_var () in
          let (ts, r') = FuncEnv.find fname fenv in
          let pollist = AnnotatedTypeScheme.poltype ts in
          let ty = AnnotatedTypeScheme.annotated_type ts in
@@ -422,9 +422,11 @@ module Translator : TRANSLATOR = struct
            RRomenExp.RCall(fname, rpol, rargs, ((ty', rv), eff'))
          )
       | RomenExp.Block(exps) ->
-         (*let rv = VarStream.fresh_reg_var in*)
+         (* 実行前の環境と実行後の型（実行結果を格納するリージョン）に含まれているリージョン変数 *)
+         (* を、expressionのエフェクトから取り除く。 *)
          let exps' = List.rev (walk_list exps env fenv subst) in
          let (env', fenv', subst', tlexp) = List.hd exps' in
+         let twp = RRomenExp.ty_with_place tlexp in
          let rexps = List.rev_map (fun exp ->
                          match exp with
                          | (_, _, _, rexp) -> rexp
@@ -441,21 +443,20 @@ module Translator : TRANSLATOR = struct
                         (fun a -> fun b -> RegVarSet.union b (Effect.frv a))
                         eff
                         RegVarSet.empty in
-         let twp = RRomenExp.ty_with_place tlexp in
          let env_ev = TypeEnv.fold
                          (fun k -> fun v -> fun set -> EffVarSet.union set (AnnotatedType.fev v))
-                         env'
+                         env
                          EffVarSet.empty in
          let env_rv = TypeEnv.fold
                          (fun k -> fun v -> fun set -> RegVarSet.union set (AnnotatedType.frv v))
-                         env'
+                         env
                          RegVarSet.empty in
          let ty_ev = AnnotatedType.fev twp in
          let ty_rv = AnnotatedType.frv twp in
          let composed_ev = EffVarSet.union env_ev ty_ev in
          let composed_rv = RegVarSet.union env_rv ty_rv in
-         let occur_ev = EffVarSet.diff composed_ev eff_ev in
-         let occur_rv = RegVarSet.diff composed_rv eff_rv in
+         let occur_ev = EffVarSet.diff eff_ev composed_ev in
+         let occur_rv = RegVarSet.diff eff_rv composed_rv in
          let eff' = EffSet.filter
                       (fun e -> match e with
                                  | Effect.EVar(s) ->
@@ -468,11 +469,11 @@ module Translator : TRANSLATOR = struct
                                     if RegVarSet.mem r occur_rv then false else true
                                  | _ -> true
                        ) eff' in
-         let exp' = RRomenExp.RBlock(rexps, (twp, eff')) in
+         let exp' = RRomenExp.RBlock(rexps, (twp, eff)) in
          let exp'' = RRomenExp.RReg(occur_rv, exp', (twp, eff'')) in
          (
-           env',
-           fenv',
+           env,
+           fenv,
            subst',
            if RegVarSet.is_empty occur_rv
            then exp'
@@ -490,7 +491,7 @@ module Translator : TRANSLATOR = struct
            RRomenExp.RLet(s, rexp, ((ty, r), eff))
          )
       | RomenExp.Fn(fname, args, blk) ->
-         let twps = List.map (fun _ -> VarStream.fresh_ty_with_place) args in
+         let twps = List.map (fun _ -> VarStream.fresh_ty_with_place ()) args in
          let extenv = List.fold_left2
                         (fun s -> fun twp -> fun arg -> TypeEnv.add arg twp s)
                         env
