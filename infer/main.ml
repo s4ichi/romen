@@ -2,6 +2,7 @@ type ident = string ;;
 
 module RomenExp = struct
   type t =
+    | Indefinite
     | IntLit of int
     | Var of ident
     | Op of t * t
@@ -27,6 +28,7 @@ module RegVar = struct
   let equal (x, x') = x = x'
   let compare a = fun b -> String.compare a b
   let new_var c = intro ("'r" ^ (string_of_int c))
+  let heap = "heap"
 end
 
 module EffVar = struct
@@ -88,7 +90,7 @@ end
 module Substitute = struct
   let empty = (TyVarMap.empty, RegVarMap.empty, EffVarMap.empty)
 
-  let compose ((st1, sr1, se1) as s1) ((st2, sr2, se2) as s2) =
+  let compose (st1, sr1, se1) (st2, sr2, se2) =
     (
       TyVarMap.fold (fun k -> fun v -> fun b -> TyVarMap.add k v b) st1 st2,
       RegVarMap.fold (fun k -> fun v -> fun b -> RegVarMap.add k v b) sr1 sr2,
@@ -98,6 +100,7 @@ end
 
 module AnnotatedType = struct
   type t =
+    | TAny
     | TVar of TyVar.t
     | TInt
     | TArrow of (t * RegVar.t) * ArrowEff.t * (t * RegVar.t) (* type_with_place *)
@@ -110,6 +113,7 @@ module AnnotatedType = struct
        "(" ^ (fmt t1) ^ ")-{" ^ (EffVar.fmt ev) ^ ", " ^ "effects" ^ "}-(" ^ (fmt t2) ^ ")"
     | (TInt, r) ->
        "TInt at " ^ (RegVar.fmt r)
+    | (TAny, r) -> "TAny"
 
   let rec ftv ty =
     match ty with
@@ -163,6 +167,7 @@ module AnnotatedType = struct
 
   let rec subst ((st, sr, se) as s) t =
     match t with
+    | TAny -> TAny
     | TInt -> TInt
     | TVar(x) ->
        if TyVarMap.mem x st then TyVarMap.find x st
@@ -172,7 +177,8 @@ module AnnotatedType = struct
          ((subst s t1), (subst_reg s r1)),
          subst_arrow_eff s ae,
          ((subst s t2), (subst_reg s r2))
-       )
+         )
+
 
   let subst_with_place s (t, r) = ((subst s t), (subst_reg s r))
 
@@ -194,6 +200,7 @@ module AnnotatedType = struct
   let rec unify_with_place ((t1, r1) as twp1) ((t2, r2) as twp2) =
     let sr = unify_rho r1 r2 in
     match (t1, t2) with
+    | (TAny, _) | (_, TAny) -> Substitute.empty
     | (TVar x, _) ->
        if TyVarSet.mem x (ftv twp2) then failwith "unify failed with occur"
        else Substitute.compose sr (TyVarMap.singleton x t2, RegVarMap.empty, EffVarMap.empty)
@@ -255,6 +262,7 @@ end
 
 module RRomenExp = struct
   type t =
+    | RIndefinite of (ty_with_place * EffSet.t)
     | RIntLit of int * (ty_with_place * EffSet.t)
     | RVar of ident * (ty_with_place * EffSet.t)
     | ROp of t * t * (ty_with_place * EffSet.t)
@@ -266,6 +274,7 @@ module RRomenExp = struct
 
   let ty_with_place e =
     match e with
+    | RIndefinite ((t, _)) -> t
     | RIntLit (_, (t, _)) -> t
     | RVar (_, (t, _)) -> t
     | ROp (_, _, (t, _)) -> t
@@ -281,6 +290,7 @@ module RRomenExp = struct
 
   let effect e =
     match e with
+    | RIndefinite ((_, ef)) -> ef
     | RIntLit (_, (_, ef)) -> ef
     | RVar (_, (_, ef)) -> ef
     | ROp (_, _, (_, ef)) -> ef
@@ -292,6 +302,7 @@ module RRomenExp = struct
 
   let insert p e =
     match e with
+    | RIndefinite (_) -> RIndefinite(p)
     | RIntLit (a, _) -> RIntLit(a, p)
     | RVar (a, _) -> RVar(a, p)
     | ROp (a, b, _) -> ROp(a, b, p)
@@ -304,6 +315,8 @@ module RRomenExp = struct
   let rec fmt e d =
     let prefix k = String.make k '\t' in
     match e with
+    | RIndefinite ((tp, e)) ->
+       (prefix d) ^ "RIndefinite((" ^ (AnnotatedType.fmt tp) ^ "))"
     | RIntLit (i, (tp, e)) ->
        (prefix d) ^ "RInt(" ^ (string_of_int i) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "))"
     | RVar (s, (tp, e)) ->
@@ -345,6 +358,14 @@ module Translator : TRANSLATOR = struct
       | [] -> []
     and walk e env fenv subst =
       match e with
+      | RomenExp.Indefinite ->
+         let h = RegVar.heap in
+         (
+           env,
+           fenv,
+           subst,
+           RRomenExp.RIndefinite((AnnotatedType.TAny, h), EffSet.singleton (Effect.ELit(h)))
+         )
       | RomenExp.IntLit(n) ->
          let rv = VarStream.fresh_reg_var in
          (
@@ -384,7 +405,6 @@ module Translator : TRANSLATOR = struct
          let rargs = List.rev_map (fun arg ->
                          match arg with
                          | (_, _, _, rexp) -> rexp
-                         | _ -> failwith "Unmatch args"
                        ) args' in
          let polsubst = List.fold_left2
                           (fun a -> fun b -> fun c -> Substitute.compose a (AnnotatedType.unify_with_place b c))
@@ -402,13 +422,12 @@ module Translator : TRANSLATOR = struct
            RRomenExp.RCall(fname, rpol, rargs, ((ty', rv), eff'))
          )
       | RomenExp.Block(exps) ->
-         let rv = VarStream.fresh_reg_var in
+         (*let rv = VarStream.fresh_reg_var in*)
          let exps' = List.rev (walk_list exps env fenv subst) in
          let (env', fenv', subst', tlexp) = List.hd exps' in
          let rexps = List.rev_map (fun exp ->
                          match exp with
                          | (_, _, _, rexp) -> rexp
-                         | _ -> failwith "Unmatch args"
                        ) exps' in
          let eff = List.fold_left
                      (fun a -> fun b -> EffSet.union a (RRomenExp.effect b))
@@ -472,22 +491,22 @@ module Translator : TRANSLATOR = struct
          )
       | RomenExp.Fn(fname, args, blk) ->
          let twps = List.map (fun _ -> VarStream.fresh_ty_with_place) args in
-         let (env', fenv', subst', rblk) = walk blk env fenv subst in
          let extenv = List.fold_left2
                         (fun s -> fun twp -> fun arg -> TypeEnv.add arg twp s)
-                        env'
+                        env
                         twps
                         args in
-         let twp' = RRomenExp.ty_with_place rblk in
+         let (_, _, subst', rblk) = walk blk extenv fenv subst in
+         let (t', r') = RRomenExp.ty_with_place rblk in
          let eff = RRomenExp.effect rblk in
+         let fenv'' = FuncEnv.add fname ((twps, eff, t'), r') fenv in
          let (tylist, reglist) = List.split twps in
          (
-           env',
-           fenv',
+           env,
+           fenv'',
            subst',
-           RRomenExp.RFn(fname, reglist, args, rblk, (twp', eff))
+           RRomenExp.RFn(fname, reglist, args, rblk, ((t', r'), eff))
          )
-      | _ -> failwith "unknown expression"
     in
     let (env', fenv', subst', result) = walk basic TypeEnv.empty FuncEnv.empty Substitute.empty in
     print_string ((RRomenExp.fmt result 0) ^ "\n");
