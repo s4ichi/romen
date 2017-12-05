@@ -82,16 +82,12 @@ end
 
 module EffSet = Set.Make(Effect) ;;
 
-module ArrowEff = struct
-  type t = EffVar.t * EffSet.t
-
-  let frv (_, phi) =
+module VarPhi = struct
+  let frv phi =
     EffSet.fold (fun a -> (fun b -> RegVarSet.union (Effect.frv a) b)) phi RegVarSet.empty
 
-  let fev (eps, phi) =
-    EffVarSet.union
-      (EffVarSet.singleton eps)
-      (EffSet.fold (fun a -> (fun b -> EffVarSet.union (Effect.fev a) b)) phi EffVarSet.empty)
+  let fev phi =
+    EffSet.fold (fun a -> (fun b -> EffVarSet.union (Effect.fev a) b)) phi EffVarSet.empty
 end
 
 module Substitute = struct
@@ -110,14 +106,15 @@ module AnnotatedType = struct
     | TAny
     | TVar of TyVar.t
     | TInt
-    | TArrow of (t * RegVar.t) * ArrowEff.t * (t * RegVar.t) (* type_with_place *)
+    | TArrow of (t * RegVar.t) * EffSet.t * (t * RegVar.t) (* type_with_place *)
 
   let rec fmt ty=
     match ty with
     | (TVar(s), r) ->
        "TVar(" ^ (TyVar.fmt s) ^ ") at " ^ (RegVar.fmt r)
-    | (TArrow(t1, (ev, eff), t2), r) ->
-       "(" ^ (fmt t1) ^ ")-{" ^ (EffVar.fmt ev) ^ ", " ^ "effects" ^ "}-(" ^ (fmt t2) ^ ")"
+    | (TArrow(t1, phi, t2), r) ->
+       "(" ^ (fmt t1) ^ ") -> (" ^ (fmt t2) ^ "), [" ^
+         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements phi))) ^ "]"
     | (TInt, r) ->
        "TInt at " ^ (RegVar.fmt r)
     | (TAny, r) -> "TAny"
@@ -125,23 +122,23 @@ module AnnotatedType = struct
   let rec ftv ty =
     match ty with
     | (TVar(s), _) -> TyVarSet.singleton s
-    | (TArrow(t1, (ev, eff), t2), _) -> TyVarSet.union (ftv t1) (ftv t2)
+    | (TArrow(t1, _, t2), _) -> TyVarSet.union (ftv t1) (ftv t2)
     | (_, _) -> TyVarSet.empty ;;
 
   let rec frv ty =
     match ty with
-    | (TArrow(t1, (ev, eff), t2), r) ->
+    | (TArrow(t1, phi, t2), r) ->
        RegVarSet.union
          (RegVarSet.union (frv t1) (frv t2))
-         (RegVarSet.union (RegVarSet.singleton r) (ArrowEff.frv (ev, eff)))
+         (RegVarSet.union (RegVarSet.singleton r) (VarPhi.frv phi))
     | (_, r) -> RegVarSet.singleton r ;;
 
   let rec fev ty =
     match ty with
-    | (TArrow(t1, (ev, eff), t2), _) ->
+    | (TArrow(t1, phi, t2), _) ->
        EffVarSet.union
          (EffVarSet.union (fev t1) (fev t2))
-         (EffVarSet.union (EffVarSet.singleton ev) (ArrowEff.fev (ev, eff)))
+         (VarPhi.fev phi)
     | (_, _) -> EffVarSet.empty ;;
 
   let fv ty = ((ftv ty), (frv ty), (fev ty))
@@ -150,27 +147,17 @@ module AnnotatedType = struct
     if RegVarMap.mem r sr then RegVarMap.find r sr
     else r
 
-  (* なんかeffectの単一化おかしい気がする *)
-  let subst_eff ((st, sr, se) as s) eff =
-    EffSet.fold
-      ( fun a -> ( fun b ->
-                   match a with
-                   | Effect.ELit(r) -> EffSet.add (Effect.ELit(subst_reg s r)) b
-                   | Effect.EVar(x) ->
-                      let (eps1, eff1) =
-                        if EffVarMap.mem x se then EffVarMap.find x se
-                        else (x, EffSet.empty)
-                      in
-                      EffSet.union (EffSet.add (Effect.EVar(eps1)) eff1) b
-                 )
-      ) EffSet.empty eff
+  let subst_effvar ((st, sr, se) as s) x =
+    if EffVarMap.mem x se then EffVarMap.find x se
+    else x
 
-  (* なんかeffectの単一化おかしい気がする *)
-  let subst_arrow_eff ((st, sr, se) as s) (eps, eff) =
-    let (eps1, eff1) =
-      if EffVarMap.mem eps se then EffVarMap.find eps se
-      else (eps, eff) in
-    (eps1, subst_eff s eff1)
+  let subst_eff ((st, sr, se) as s) e =
+    match e with
+    | Effect.ELit(r) -> Effect.ELit(subst_reg s r)
+    | Effect.EVar(x) -> Effect.EVar(subst_effvar s x)
+
+  let subst_phi ((st, sr, se) as s) eff =
+    EffSet.map (fun e -> subst_eff s e) eff
 
   let rec subst ((st, sr, se) as s) t =
     match t with
@@ -179,26 +166,19 @@ module AnnotatedType = struct
     | TVar(x) ->
        if TyVarMap.mem x st then TyVarMap.find x st
        else t
-    | TArrow((t1, r1), ae, (t2, r2)) ->
-       TArrow(
-         ((subst s t1), (subst_reg s r1)),
-         subst_arrow_eff s ae,
-         ((subst s t2), (subst_reg s r2))
-         )
-
+    | TArrow((t1, r1), phi, (t2, r2)) ->
+       TArrow(((subst s t1), (subst_reg s r1)), subst_phi s phi, ((subst s t2), (subst_reg s r2)))
 
   let subst_with_place s (t, r) = ((subst s t), (subst_reg s r))
 
-  let rec unify_arrow_effect (e1, eff1) (e2, eff2) =
-    if EffVar.equal (e1, e2) then Substitute.empty
-    else (
-      let eff' = EffSet.union eff1 eff2 in
-      (
-        TyVarMap.empty,
-        RegVarMap.empty,
-        EffVarMap.add e2 (e2, eff') (EffVarMap.singleton e1 (e2, eff'))
-      )
+  let rec unify_phi phi1 phi2 =
+    let eff' = EffSet.union phi1 phi2 in
+    (
+      TyVarMap.empty,
+      RegVarMap.empty,
+      EffVarMap.empty (*TODO*)
     )
+
 
   let rec unify_rho r1 r2 =
     if RegVar.equal (r1, r2) then Substitute.empty
@@ -214,10 +194,10 @@ module AnnotatedType = struct
     | (_, TVar x) ->
        if TyVarSet.mem x (ftv twp1) then failwith "unify failed with occur"
        else Substitute.compose sr (TyVarMap.singleton x t1, RegVarMap.empty, EffVarMap.empty)
-    | (TArrow(tp1, ae1, tp2), TArrow(tp3, ae2, tp4)) ->
+    | (TArrow(tp1, phi1, tp2), TArrow(tp3, phi2, tp4)) ->
        let s1 = unify_with_place tp1 tp2 in
        let s2 = unify_with_place tp3 tp4 in
-       let s3 = unify_arrow_effect ae1 ae2 in
+       let s3 = unify_phi phi1 phi2 in
        Substitute.compose s3 (Substitute.compose s2 (Substitute.compose s1 sr))
     | (TInt, TInt) -> sr
     | (_, _) -> failwith "unify failed"
@@ -420,14 +400,19 @@ module Translator : TRANSLATOR = struct
                          match arg with
                          | (_, _, _, rexp) -> rexp
                        ) args' in
+         let reff = List.fold_left
+                       (fun s -> fun rarg -> EffSet.union (RRomenExp.effect rarg) s)
+                       EffSet.empty
+                       rargs in
+         (* effect の unify も必要になってくる気がする *)
          let polsubst = List.fold_left2
                           (fun a -> fun b -> fun c -> Substitute.compose a (AnnotatedType.unify_with_place b c))
                           Substitute.empty
                           (List.map (fun e -> RRomenExp.ty_with_place e) rargs)
                           pollist in
-         let polsubst' = Substitute.compose polsubst (AnnotatedType.unify_rho rv r') in
+         let polsubst' = Substitute.compose polsubst (AnnotatedType.unify_rho r' rv) in
          let ty' = AnnotatedType.subst polsubst' ty in
-         let eff' = AnnotatedType.subst_eff polsubst' poleff in
+         let eff' = EffSet.union (AnnotatedType.subst_phi polsubst' poleff) reff in
          let rpol = rv :: (List.map (fun arg -> RRomenExp.place arg) rargs) in
          (
            env',
@@ -518,7 +503,7 @@ module Translator : TRANSLATOR = struct
            env,
            fenv'',
            subst',
-           RRomenExp.RFn(fname, reglist, args, rblk, ((t', r'), eff))
+           RRomenExp.RFn(fname, (r' :: reglist), args, rblk, ((t', r'), eff))
          )
     in
     let (env', fenv', subst', result) = walk basic TypeEnv.empty FuncEnv.empty Substitute.empty in
