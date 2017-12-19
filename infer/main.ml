@@ -4,8 +4,10 @@ module RomenExp = struct
   type t =
     | Indefinite
     | IntLit of int
+    | BoolLit of bool
     | Var of ident
     | Op of t * t
+    | If of t * t * t
     | Call of ident * t list
     | Block of t list
     | Let of ident * t
@@ -251,8 +253,10 @@ module RRomenExp = struct
   type t =
     | RIndefinite of (ty_with_place * EffSet.t)
     | RIntLit of int * (ty_with_place * EffSet.t)
+    | RBoolLit of bool * (ty_with_place * EffSet.t)
     | RVar of ident * (ty_with_place * EffSet.t)
     | ROp of t * t * (ty_with_place * EffSet.t)
+    | RIf of t * t * t * (ty_with_place * EffSet.t)
     | RCall of ident * RegVar.t list * t list * (ty_with_place * EffSet.t)
     | RBlock of t list * (ty_with_place * EffSet.t)
     | RReg of RegVarSet.t * t * (ty_with_place * EffSet.t) (* for RBlock only *)
@@ -263,8 +267,10 @@ module RRomenExp = struct
     match e with
     | RIndefinite ((t, _)) -> t
     | RIntLit (_, (t, _)) -> t
+    | RBoolLit (_, (t, _)) -> t
     | RVar (_, (t, _)) -> t
     | ROp (_, _, (t, _)) -> t
+    | RIf (_, _, _, (t, _)) -> t
     | RCall (_, _, _, (t, _)) -> t
     | RBlock (_, (t, _)) -> t
     | RReg (_, _, (t, _)) -> t
@@ -279,8 +285,10 @@ module RRomenExp = struct
     match e with
     | RIndefinite ((_, ef)) -> ef
     | RIntLit (_, (_, ef)) -> ef
+    | RBoolLit (_, (_, ef)) -> ef
     | RVar (_, (_, ef)) -> ef
     | ROp (_, _, (_, ef)) -> ef
+    | RIf (_, _, _, (_, ef)) -> ef
     | RCall (_, _, _, (_, ef)) -> ef
     | RBlock (_, (_, ef)) -> ef
     | RReg (_, _, (_, ef)) -> ef
@@ -291,8 +299,10 @@ module RRomenExp = struct
     match e with
     | RIndefinite (_) -> RIndefinite(p)
     | RIntLit (a, _) -> RIntLit(a, p)
+    | RBoolLit (a, _) -> RBoolLit(a, p)
     | RVar (a, _) -> RVar(a, p)
     | ROp (a, b, _) -> ROp(a, b, p)
+    | RIf (a, b, c, _) -> RIf(a, b, c, p)
     | RCall (a, b, c, _) -> RCall(a, b, c, p)
     | RBlock (a, _) -> RBlock(a, p)
     | RReg (a, b, _) -> RReg(a, b, p)
@@ -308,6 +318,9 @@ module RRomenExp = struct
     | RIntLit (i, (tp, eff)) ->
        (prefix d) ^ "RInt(" ^ (string_of_int i) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
          (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RBoolLit (b, (tp, eff)) ->
+       (prefix d) ^ "RBool(" ^ (string_of_bool b) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
     | RVar (s, (tp, eff)) ->
        (prefix d) ^ "RVar(" ^ (s) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
          (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
@@ -315,6 +328,11 @@ module RRomenExp = struct
        (prefix d) ^ "ROp(\n" ^ (fmt exp1 (d+1)) ^ ",\n" ^ (fmt exp2 (d+1)) ^ ",\n" ^
          (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
            (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+    | RIf (cond, exp1, exp2, (tp, eff)) ->
+       (prefix d) ^ "RIf(\n" ^ (prefix (d+1)) ^ "cond:\n" ^ (fmt exp1 (d+2)) ^ ",\n" ^
+         (prefix (d+1)) ^ "then:\n" ^ (fmt exp2 (d+2)) ^ ",\n" ^ (prefix (d+1)) ^ "else:\n" ^ (fmt exp2 (d+2)) ^ ",\n" ^
+           (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
+             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
     | RCall (fn, rargs, args, (tp, eff)) ->
        (prefix d) ^ "RCall(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), \n" ^
          (prefix (d+1)) ^ "[" ^ (String.concat ", " (List.map (fun exp -> fmt exp 0) args)) ^ "],\n" ^
