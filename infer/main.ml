@@ -108,6 +108,7 @@ module AnnotatedType = struct
     | TAny
     | TVar of TyVar.t
     | TInt
+    | TBool
     | TArrow of (t * RegVar.t) * EffSet.t * (t * RegVar.t) (* type_with_place *)
 
   let rec fmt ty=
@@ -119,6 +120,8 @@ module AnnotatedType = struct
          (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements phi))) ^ "]"
     | (TInt, r) ->
        "TInt at " ^ (RegVar.fmt r)
+    | (TBool, r) ->
+       "TBool at " ^ (RegVar.fmt r)
     | (TAny, r) -> "TAny"
 
   let rec ftv ty =
@@ -165,6 +168,7 @@ module AnnotatedType = struct
     match t with
     | TAny -> TAny
     | TInt -> TInt
+    | TBool -> TBool
     | TVar(x) ->
        if TyVarMap.mem x st then TyVarMap.find x st
        else t
@@ -180,7 +184,6 @@ module AnnotatedType = struct
       RegVarMap.empty,
       EffVarMap.empty (*TODO*)
     )
-
 
   let rec unify_rho r1 r2 =
     if RegVar.equal (r1, r2) then Substitute.empty
@@ -202,6 +205,7 @@ module AnnotatedType = struct
        let s3 = unify_phi phi1 phi2 in
        Substitute.compose s3 (Substitute.compose s2 (Substitute.compose s1 sr))
     | (TInt, TInt) -> sr
+    | (TBool, TBool) -> sr
     | (_, _) -> failwith "unify failed"
 end
 
@@ -386,6 +390,14 @@ module Translator : TRANSLATOR = struct
            subst,
            RRomenExp.RIntLit(n, ((AnnotatedType.TInt, rv), EffSet.singleton (Effect.ELit(rv))))
          )
+      | RomenExp.BoolLit(b) ->
+         let rv = VarStream.fresh_reg_var () in
+         (
+           env,
+           fenv,
+           subst,
+           RRomenExp.RBoolLit(b, ((AnnotatedType.TBool, rv), EffSet.singleton (Effect.ELit(rv))))
+         )
       | RomenExp.Var(s) ->
          let (t, r) = TypeEnv.find s env in
          (
@@ -398,13 +410,31 @@ module Translator : TRANSLATOR = struct
          let (env1, fenv1, subst1, rexp1) = walk exp1 env fenv subst in
          let (env2, fenv2, subst2, rexp2) = walk exp1 env1 fenv1 subst1 in
          let rv' = VarStream.fresh_reg_var () in
-         let subst3 = Substitute.compose subst2 subst1 in (* これまじでいる？ *)
-         let (ty, _) = RRomenExp.ty_with_place rexp1 (* 動的型付けだけど一応検査するべき *) in
-         (
+         let subst3 = Substitute.compose subst2 subst1 in
+         let (ty, _) = RRomenExp.ty_with_place rexp1 in
+         let eff' = EffSet.union (EffSet.singleton (Effect.ELit(rv')))
+                                 (EffSet.union (RRomenExp.effect rexp1) (RRomenExp.effect rexp2)) in
+        (
            env2,
            fenv2,
            subst3,
-           RRomenExp.ROp(rexp1, rexp2, ((ty, rv'), EffSet.singleton (Effect.ELit(rv'))))
+           RRomenExp.ROp(rexp1, rexp2, ((ty, rv'), eff'))
+         )
+      | RomenExp.If(cond, exp1, exp2) ->
+         let (env1, fenv1, subst1, rcond) = walk cond env fenv subst in
+         let (env2, fenv2, subst2, rexp1) = walk exp1 env1 fenv1 subst1 in
+         let (env3, fenv3, subst3, rexp2) = walk exp2 env2 fenv2 subst2 in
+         let rv' = VarStream.fresh_reg_var () in
+         let subst' = Substitute.compose subst3 (Substitute.compose subst1 subst2) in
+         let (ty, _) = RRomenExp.ty_with_place rexp1 in
+         let eff' = EffSet.union (EffSet.singleton (Effect.ELit(rv')))
+                                 (EffSet.union (RRomenExp.effect rcond)
+                                               (EffSet.union  (RRomenExp.effect rexp1) (RRomenExp.effect rexp2))) in
+         (
+           env3,
+           fenv3,
+           subst',
+           RRomenExp.RIf(rcond, rexp1, rexp2, ((ty, rv'), eff'))
          )
       | RomenExp.Call(fname, args) ->
          let rv = VarStream.fresh_reg_var () in
