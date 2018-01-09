@@ -1,4 +1,4 @@
-type ident = string ;;
+type ident = string
 
 module RomenExp = struct
   type t =
@@ -46,11 +46,7 @@ module TyVarSet = Set.Make(TyVar)
 module RegVarSet = Set.Make(RegVar)
 module EffVarSet = Set.Make(EffVar)
 
-module TyVarMap = Map.Make(TyVar)
-module RegVarMap = Map.Make(RegVar)
-module EffVarMap = Map.Make(EffVar)
-
-module Effect = struct
+module AtomicEffect = struct
   type t =
     | EVar of EffVar.t
     | ELit of RegVar.t
@@ -82,15 +78,20 @@ module Effect = struct
     | (ELit(s1), EVar(s2)) -> 1
 end
 
-module EffSet = Set.Make(Effect) ;;
+(* FIXME: want to unify name between 'Effect' and 'EffectSet' *)
+module EffectSet = Set.Make(AtomicEffect)
 
-module VarPhi = struct
+module Effect = struct
   let frv phi =
-    EffSet.fold (fun a -> (fun b -> RegVarSet.union (Effect.frv a) b)) phi RegVarSet.empty
+    EffectSet.fold (fun a -> (fun b -> RegVarSet.union (AtomicEffect.frv a) b)) phi RegVarSet.empty
 
   let fev phi =
-    EffSet.fold (fun a -> (fun b -> EffVarSet.union (Effect.fev a) b)) phi EffVarSet.empty
+    EffectSet.fold (fun a -> (fun b -> EffVarSet.union (AtomicEffect.fev a) b)) phi EffVarSet.empty
 end
+
+module TyVarMap = Map.Make(TyVar)
+module RegVarMap = Map.Make(RegVar)
+module EffVarMap = Map.Make(EffVar)
 
 module Substitute = struct
   let empty = (TyVarMap.empty, RegVarMap.empty, EffVarMap.empty)
@@ -109,7 +110,7 @@ module AnnotatedType = struct
     | TVar of TyVar.t
     | TInt
     | TBool
-    | TArrow of (t * RegVar.t) * EffSet.t * (t * RegVar.t) (* type_with_place *)
+    | TArrow of (t * RegVar.t) * EffectSet.t * (t * RegVar.t) (* type_with_place *)
 
   let rec fmt ty=
     match ty with
@@ -117,7 +118,7 @@ module AnnotatedType = struct
        "TVar(" ^ (TyVar.fmt s) ^ ") at " ^ (RegVar.fmt r)
     | (TArrow(t1, phi, t2), r) ->
        "(" ^ (fmt t1) ^ ") -> (" ^ (fmt t2) ^ "), [" ^
-         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements phi))) ^ "]"
+         (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements phi))) ^ "]"
     | (TInt, r) ->
        "TInt at " ^ (RegVar.fmt r)
     | (TBool, r) ->
@@ -128,23 +129,23 @@ module AnnotatedType = struct
     match ty with
     | (TVar(s), _) -> TyVarSet.singleton s
     | (TArrow(t1, _, t2), _) -> TyVarSet.union (ftv t1) (ftv t2)
-    | (_, _) -> TyVarSet.empty ;;
+    | (_, _) -> TyVarSet.empty
 
   let rec frv ty =
     match ty with
     | (TArrow(t1, phi, t2), r) ->
        RegVarSet.union
          (RegVarSet.union (frv t1) (frv t2))
-         (RegVarSet.union (RegVarSet.singleton r) (VarPhi.frv phi))
-    | (_, r) -> RegVarSet.singleton r ;;
+         (RegVarSet.union (RegVarSet.singleton r) (Effect.frv phi))
+    | (_, r) -> RegVarSet.singleton r
 
   let rec fev ty =
     match ty with
     | (TArrow(t1, phi, t2), _) ->
        EffVarSet.union
          (EffVarSet.union (fev t1) (fev t2))
-         (VarPhi.fev phi)
-    | (_, _) -> EffVarSet.empty ;;
+         (Effect.fev phi)
+    | (_, _) -> EffVarSet.empty
 
   let fv ty = ((ftv ty), (frv ty), (fev ty))
 
@@ -158,11 +159,11 @@ module AnnotatedType = struct
 
   let subst_eff ((st, sr, se) as s) e =
     match e with
-    | Effect.ELit(r) -> Effect.ELit(subst_reg s r)
-    | Effect.EVar(x) -> Effect.EVar(subst_effvar s x)
+    | AtomicEffect.ELit(r) -> AtomicEffect.ELit(subst_reg s r)
+    | AtomicEffect.EVar(x) -> AtomicEffect.EVar(subst_effvar s x)
 
   let subst_phi ((st, sr, se) as s) eff =
-    EffSet.map (fun e -> subst_eff s e) eff
+    EffectSet.map (fun e -> subst_eff s e) eff
 
   let rec subst ((st, sr, se) as s) t =
     match t with
@@ -178,7 +179,7 @@ module AnnotatedType = struct
   let subst_with_place s (t, r) = ((subst s t), (subst_reg s r))
 
   let rec unify_phi phi1 phi2 =
-    let eff' = EffSet.union phi1 phi2 in
+    let eff' = EffectSet.union phi1 phi2 in
     (
       TyVarMap.empty,
       RegVarMap.empty,
@@ -213,7 +214,7 @@ type ty_with_place = (AnnotatedType.t * RegVar.t)
 
 module AnnotatedTypeScheme = struct
   (* 多相型変数・リージョン変数 * 評価した際のeffect * 型 *)
-  type t = ty_with_place list * EffSet.t * AnnotatedType.t
+  type t = ty_with_place list * EffectSet.t * AnnotatedType.t
 
   let annotated_type ts =
     match ts with
@@ -229,11 +230,11 @@ module AnnotatedTypeScheme = struct
 end
 
 (* TypeEnv : Var -> (AnnotatedType * RegVar) *)
-module TypeEnv = Map.Make(String) ;;
+module TypeEnv = Map.Make(String)
 
 (* FuncEnv : Var -> AnnotatedTypeScheme * RegVar *)
 (* RegVarはその返り値のリージョン多相変数 *)
-module FuncEnv = Map.Make(String) ;;
+module FuncEnv = Map.Make(String)
 
 module VarStream = struct
   let a = ref 0
@@ -255,17 +256,17 @@ end
 
 module RRomenExp = struct
   type t =
-    | RIndefinite of (ty_with_place * EffSet.t)
-    | RIntLit of int * (ty_with_place * EffSet.t)
-    | RBoolLit of bool * (ty_with_place * EffSet.t)
-    | RVar of ident * (ty_with_place * EffSet.t)
-    | ROp of t * t * (ty_with_place * EffSet.t)
-    | RIf of t * t * t * (ty_with_place * EffSet.t)
-    | RCall of ident * RegVar.t list * t list * (ty_with_place * EffSet.t)
-    | RBlock of t list * (ty_with_place * EffSet.t)
-    | RReg of RegVarSet.t * t * (ty_with_place * EffSet.t) (* for RBlock only *)
-    | RLet of ident * t * (ty_with_place * EffSet.t)
-    | RFn of ident * RegVar.t list * ident list * t * (ty_with_place * EffSet.t)
+    | RIndefinite of (ty_with_place * EffectSet.t)
+    | RIntLit of int * (ty_with_place * EffectSet.t)
+    | RBoolLit of bool * (ty_with_place * EffectSet.t)
+    | RVar of ident * (ty_with_place * EffectSet.t)
+    | ROp of t * t * (ty_with_place * EffectSet.t)
+    | RIf of t * t * t * (ty_with_place * EffectSet.t)
+    | RCall of ident * RegVar.t list * t list * (ty_with_place * EffectSet.t)
+    | RBlock of t list * (ty_with_place * EffectSet.t)
+    | RReg of RegVarSet.t * t * (ty_with_place * EffectSet.t) (* for RBlock only *)
+    | RLet of ident * t * (ty_with_place * EffectSet.t)
+    | RFn of ident * RegVar.t list * ident list * t * (ty_with_place * EffectSet.t)
 
   let ty_with_place e =
     match e with
@@ -318,46 +319,46 @@ module RRomenExp = struct
     match e with
     | RIndefinite ((tp, eff)) ->
        (prefix d) ^ "RIndefinite((" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+         (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RIntLit (i, (tp, eff)) ->
        (prefix d) ^ "RInt(" ^ (string_of_int i) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+         (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RBoolLit (b, (tp, eff)) ->
        (prefix d) ^ "RBool(" ^ (string_of_bool b) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+         (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RVar (s, (tp, eff)) ->
        (prefix d) ^ "RVar(" ^ (s) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-         (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+         (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | ROp (exp1, exp2, (tp, eff)) ->
        (prefix d) ^ "ROp(\n" ^ (fmt exp1 (d+1)) ^ ",\n" ^ (fmt exp2 (d+1)) ^ ",\n" ^
          (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-           (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+           (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RIf (cond, exp1, exp2, (tp, eff)) ->
        (prefix d) ^ "RIf(\n" ^ (prefix (d+1)) ^ "cond:\n" ^ (fmt exp1 (d+2)) ^ ",\n" ^
          (prefix (d+1)) ^ "then:\n" ^ (fmt exp2 (d+2)) ^ ",\n" ^ (prefix (d+1)) ^ "else:\n" ^ (fmt exp2 (d+2)) ^ ",\n" ^
            (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+             (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RCall (fn, rargs, args, (tp, eff)) ->
        (prefix d) ^ "RCall(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), \n" ^
          (prefix (d+1)) ^ "[" ^ (String.concat ", " (List.map (fun exp -> fmt exp 0) args)) ^ "],\n" ^
            (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+             (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RBlock (exps, (tp, eff)) ->
        (prefix d) ^ "RBlock({\n" ^ (String.concat ",\n" (List.map (fun exp -> fmt exp (d+1)) exps)) ^ "\n" ^ (prefix d) ^ "},\n" ^
          (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-           (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+           (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RReg (rgs, blk, (tp, eff)) ->
        (prefix d) ^ "RReg([" ^ (String.concat ", " (List.map (fun exp -> RegVar.fmt exp) (RegVarSet.elements rgs))) ^ "],\n" ^
          (fmt blk (d+1)) ^ ",\n" ^
            (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+             (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
     | RLet (s, exp, (tp, eff)) ->
        (prefix d) ^ "RLet(" ^ (s) ^ ", " ^ (fmt exp 0) ^ ", (" ^ (AnnotatedType.fmt tp) ^ "))"
     | RFn (fn, rargs, args, exp, (tp, eff)) ->
        (prefix d) ^ "RFn(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), (" ^
          (String.concat ", " args) ^ "),\n" ^ (fmt exp (d+1)) ^ "\n" ^
            (prefix d) ^ "(" ^ (AnnotatedType.fmt tp) ^ "), [" ^
-             (String.concat ", " (List.map (fun e -> Effect.fmt e) (EffSet.elements eff))) ^ "])"
+             (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (EffectSet.elements eff))) ^ "])"
 end
 
 module type TRANSLATOR = sig
@@ -380,7 +381,7 @@ module Translator : TRANSLATOR = struct
            env,
            fenv,
            subst,
-           RRomenExp.RIndefinite((AnnotatedType.TAny, h), EffSet.singleton (Effect.ELit(h)))
+           RRomenExp.RIndefinite((AnnotatedType.TAny, h), EffectSet.singleton (AtomicEffect.ELit(h)))
          )
       | RomenExp.IntLit(n) ->
          let rv = VarStream.fresh_reg_var () in
@@ -388,7 +389,7 @@ module Translator : TRANSLATOR = struct
            env,
            fenv,
            subst,
-           RRomenExp.RIntLit(n, ((AnnotatedType.TInt, rv), EffSet.singleton (Effect.ELit(rv))))
+           RRomenExp.RIntLit(n, ((AnnotatedType.TInt, rv), EffectSet.singleton (AtomicEffect.ELit(rv))))
          )
       | RomenExp.BoolLit(b) ->
          let rv = VarStream.fresh_reg_var () in
@@ -396,7 +397,7 @@ module Translator : TRANSLATOR = struct
            env,
            fenv,
            subst,
-           RRomenExp.RBoolLit(b, ((AnnotatedType.TBool, rv), EffSet.singleton (Effect.ELit(rv))))
+           RRomenExp.RBoolLit(b, ((AnnotatedType.TBool, rv), EffectSet.singleton (AtomicEffect.ELit(rv))))
          )
       | RomenExp.Var(s) ->
          let (t, r) = TypeEnv.find s env in
@@ -404,7 +405,7 @@ module Translator : TRANSLATOR = struct
            env,
            fenv,
            subst,
-           RRomenExp.RVar(s, ((t, r), EffSet.empty))
+           RRomenExp.RVar(s, ((t, r), EffectSet.empty))
          )
       | RomenExp.Op(exp1, exp2) ->
          let (env1, fenv1, subst1, rexp1) = walk exp1 env fenv subst in
@@ -412,8 +413,8 @@ module Translator : TRANSLATOR = struct
          let rv' = VarStream.fresh_reg_var () in
          let subst3 = Substitute.compose subst2 subst1 in
          let (ty, _) = RRomenExp.ty_with_place rexp1 in
-         let eff' = EffSet.union (EffSet.singleton (Effect.ELit(rv')))
-                                 (EffSet.union (RRomenExp.effect rexp1) (RRomenExp.effect rexp2)) in
+         let eff' = EffectSet.union (EffectSet.singleton (AtomicEffect.ELit(rv')))
+                                 (EffectSet.union (RRomenExp.effect rexp1) (RRomenExp.effect rexp2)) in
         (
            env2,
            fenv2,
@@ -427,9 +428,9 @@ module Translator : TRANSLATOR = struct
          let rv' = VarStream.fresh_reg_var () in
          let subst' = Substitute.compose subst3 (Substitute.compose subst1 subst2) in
          let (ty, _) = RRomenExp.ty_with_place rexp1 in
-         let eff' = EffSet.union (EffSet.singleton (Effect.ELit(rv')))
-                                 (EffSet.union (RRomenExp.effect rcond)
-                                               (EffSet.union  (RRomenExp.effect rexp1) (RRomenExp.effect rexp2))) in
+         let eff' = EffectSet.union (EffectSet.singleton (AtomicEffect.ELit(rv')))
+                                 (EffectSet.union (RRomenExp.effect rcond)
+                                               (EffectSet.union  (RRomenExp.effect rexp1) (RRomenExp.effect rexp2))) in
          (
            env3,
            fenv3,
@@ -449,8 +450,8 @@ module Translator : TRANSLATOR = struct
                          | (_, _, _, rexp) -> rexp
                        ) args' in
          let reff = List.fold_left
-                       (fun s -> fun rarg -> EffSet.union (RRomenExp.effect rarg) s)
-                       EffSet.empty
+                       (fun s -> fun rarg -> EffectSet.union (RRomenExp.effect rarg) s)
+                       EffectSet.empty
                        rargs in
          (* effect の unify も必要になってくる気がする *)
          let polsubst = List.fold_left2
@@ -460,7 +461,7 @@ module Translator : TRANSLATOR = struct
                           pollist in
          let polsubst' = Substitute.compose polsubst (AnnotatedType.unify_rho r' rv) in
          let ty' = AnnotatedType.subst polsubst' ty in
-         let eff' = EffSet.union (AnnotatedType.subst_phi polsubst' poleff) reff in
+         let eff' = EffectSet.union (AnnotatedType.subst_phi polsubst' poleff) reff in
          let rpol = rv :: (List.map (fun arg -> RRomenExp.place arg) rargs) in
          (
            env',
@@ -477,15 +478,15 @@ module Translator : TRANSLATOR = struct
                          | (_, _, _, rexp) -> rexp
                        ) exps' in
          let eff = List.fold_left
-                     (fun a -> fun b -> EffSet.union a (RRomenExp.effect b))
-                     EffSet.empty
+                     (fun a -> fun b -> EffectSet.union a (RRomenExp.effect b))
+                     EffectSet.empty
                      rexps in
-         let eff_ev = EffSet.fold
-                        (fun a -> fun b -> EffVarSet.union b (Effect.fev a))
+         let eff_ev = EffectSet.fold
+                        (fun a -> fun b -> EffVarSet.union b (AtomicEffect.fev a))
                         eff
                         EffVarSet.empty in
-         let eff_rv = EffSet.fold
-                        (fun a -> fun b -> RegVarSet.union b (Effect.frv a))
+         let eff_rv = EffectSet.fold
+                        (fun a -> fun b -> RegVarSet.union b (AtomicEffect.frv a))
                         eff
                         RegVarSet.empty in
          let env_ev = TypeEnv.fold
@@ -502,15 +503,15 @@ module Translator : TRANSLATOR = struct
          let composed_rv = RegVarSet.union env_rv ty_rv in
          let occur_ev = EffVarSet.diff eff_ev composed_ev in
          let occur_rv = RegVarSet.diff eff_rv composed_rv in
-         let eff' = EffSet.filter
+         let eff' = EffectSet.filter
                       (fun e -> match e with
-                                 | Effect.EVar(s) ->
+                                 | AtomicEffect.EVar(s) ->
                                     if EffVarSet.mem s occur_ev then false else true
                                  | _ -> true
                        ) eff in
-         let eff'' = EffSet.filter
+         let eff'' = EffectSet.filter
                        (fun e -> match e with
-                                 | Effect.ELit(r) ->
+                                 | AtomicEffect.ELit(r) ->
                                     if RegVarSet.mem r occur_rv then false else true
                                  | _ -> true
                        ) eff' in
@@ -559,4 +560,4 @@ module Translator : TRANSLATOR = struct
     result
 end
 
-                                   (*Translator.translate (RomenExp.IntLit(30));;*)
+(*Translator.translate (RomenExp.IntLit(30));;*)
