@@ -258,6 +258,9 @@ module VarStream = struct
   let b = ref 0
   let c = ref 0
 
+  let reset () =
+    a := 0; b := 0; c := 0; ()
+
   let fresh_type_var () : SimpleType.t =
     a := (!a) + 1; SimpleType.TVar(TyVar.new_var !a)
 
