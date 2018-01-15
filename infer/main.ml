@@ -479,23 +479,25 @@ module Translator = struct
          let pol_subst = Subst.compose pol_type_subst (Subst.compose pol_reg_subst (AnnotatedType.unify_place r rv)) in
          let (t, _) = AnnotatedType.subst pol_subst ty in
          let eff' = EffectSet.union r_eff (AnnotatedType.subst_effectset pol_subst pol_effect) in
-         let r_pol = List.map (fun reg -> AnnotatedType.subst_rvar pol_subst reg) (r :: pol_reg) in
+         let r_pol = List.map (fun reg -> AnnotatedType.subst_rvar pol_subst reg) (rv :: pol_reg) in
          (*let r_pol = rv :: (List.map (fun arg -> RRomenExp.place arg) r_args) in*)
          (
            env',
            fenv',
            subst',
-           RRomenExp.RCall(fname, r_pol, r_args, ((t, rv), eff'))
+           RRomenExp.RCall(fname, r_pol, r_args, ((t, rv), (EffectSet.add (AtomicEffect.ELit(rv)) eff')))
          )
       | RomenExp.Block(exps) ->
+         let rv = VarStream.fresh_reg_var () in
          let exps' = walk_list exps env fenv subst in
          let (env', fenv', subst', tl_exp) = List.hd (List.rev exps') in
          let ty = RRomenExp.annotated_type tl_exp in
+         let t = AnnotatedType.simple_type ty in
+         let ty' = (t, rv) in
          let r_exps = List.map (fun (_, _, _, rexp) -> rexp) exps' in
-
          let eff = List.fold_left
                      (fun a -> fun b -> EffectSet.union a (RRomenExp.effect b))
-                     EffectSet.empty
+                     (EffectSet.singleton (AtomicEffect.ELit(rv)))
                      r_exps in
          let eff_fev = EffectSet.fold
                         (fun a -> fun b -> EffVarSet.union b (AtomicEffect.fev a))
@@ -513,8 +515,8 @@ module Translator = struct
                          (fun k -> fun v -> fun set -> RegVarSet.union set (AnnotatedType.frv v))
                          env
                          RegVarSet.empty in
-         let ty_fev = AnnotatedType.fev ty in
-         let ty_frv = AnnotatedType.frv ty in
+         let ty_fev = AnnotatedType.fev ty' in
+         let ty_frv = AnnotatedType.frv ty' in
          let composed_fev = EffVarSet.union env_fev ty_fev in
          let composed_frv = RegVarSet.union env_frv ty_frv in
          let occur_fev = EffVarSet.diff eff_fev composed_fev in
@@ -531,8 +533,8 @@ module Translator = struct
                                     if RegVarSet.mem r occur_frv then false else true
                                  | _ -> true
                        ) eff' in
-         let exp' = RRomenExp.RBlock(r_exps, (ty, eff)) in
-         let exp'' = RRomenExp.RReg(occur_frv, exp', (ty, eff'')) in
+         let exp' = RRomenExp.RBlock(r_exps, (ty', eff)) in
+         let exp'' = RRomenExp.RReg(occur_frv, exp', (ty', eff'')) in
          (
            env,
            fenv,
