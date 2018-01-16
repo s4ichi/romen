@@ -223,6 +223,24 @@ module AnnotatedType = struct
     Subst.compose st sr
 end
 
+module AnnotatedUnionType =
+  Set.Make(
+      struct
+        type t = AnnotatedType.t
+        let compare (t1 : t) (t2 : t) : int =
+          let compare_place = RegVar.compare (AnnotatedType.place t1) (AnnotatedType.place t2) in
+          match (AnnotatedType.simple_type t1, AnnotatedType.simple_type t2) with
+          | (x, y) when x = y -> compare_place
+          | (SimpleType.TVar(_), SimpleType.TVar(_)) -> compare_place
+          | (SimpleType.TAny, _) -> 1
+          | (_, SimpleType.TAny) -> -1
+          | (SimpleType.TInt, _) -> 1
+          | (_, SimpleType.TInt) -> -1
+          | (SimpleType.TBool, _) -> 1
+          | (_, SimpleType.TBool) -> -1
+      end
+    )
+
 module AnnotatedTypeScheme = struct
   (* 多相型変数 * 多相リージョン変数 * 多相effect * 型 *)
   type t = SimpleType.t list * RegVar.t list * EffectSet.t * AnnotatedType.t
