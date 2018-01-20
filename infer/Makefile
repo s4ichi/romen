@@ -12,3 +12,5 @@ $(TARGET): $(COMPONENT)
 clean:
 	/bin/rm -f $(TARGET)
 	/bin/rm -f ./*.annot
+	/bin/rm -f ./*.cmi
+	/bin/rm -f ./*.cmo
