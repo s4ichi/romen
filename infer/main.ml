@@ -82,7 +82,7 @@ module EltSetMake (Ord : EltOrderedType) : EltSet
        with type elt = Ord.t = struct
   include Set.Make(Ord)
 
-  let fmt s = String.concat ", " (List.map (fun v -> Ord.fmt v) (elements s))
+  let fmt s = String.concat " V " (List.map (fun v -> Ord.fmt v) (elements s))
   let ftv s = fold (fun v -> fun s' -> TyVarSet.union s' (Ord.ftv v)) s TyVarSet.empty
   let frv s = fold (fun v -> fun s' -> RegVarSet.union s' (Ord.frv v)) s RegVarSet.empty
   let fev s = fold (fun v -> fun s' -> EffVarSet.union s' (Ord.fev v)) s EffVarSet.empty
@@ -196,13 +196,13 @@ module AnnotatedType = struct
   let fmt (ty : t) : string =
     match ty with
     | (SimpleType.TAny, r) ->
-       "TAny at " ^ (RegVar.fmt r)
+       "(TAny at " ^ (RegVar.fmt r) ^ ")"
     | (SimpleType.TVar(t), r) ->
-       "TVar(" ^ (TyVar.fmt t) ^ ") at " ^ (RegVar.fmt r)
+       "(TVar(" ^ (TyVar.fmt t) ^ ") at " ^ (RegVar.fmt r) ^ ")"
     | (SimpleType.TInt, r) ->
-       "TInt at " ^ (RegVar.fmt r)
+       "(TInt at " ^ (RegVar.fmt r) ^ ")"
     | (SimpleType.TBool, r) ->
-       "TBool at " ^ (RegVar.fmt r)
+       "(TBool at " ^ (RegVar.fmt r) ^ ")"
 
   let ftv (ty : t) : TyVarSet.t =
     match ty with
@@ -414,7 +414,7 @@ module RRomenExp = struct
          (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
            (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
     | RIf (cond, exp1, exp2, (tp, eff)) ->
-       (prefix d) ^ "RIf(\n" ^ (prefix (d+1)) ^ "cond:\n" ^ (fmt exp1 (d+2)) ^ ",\n" ^
+       (prefix d) ^ "RIf(\n" ^ (prefix (d+1)) ^ "cond:\n" ^ (fmt cond (d+2)) ^ ",\n" ^
          (prefix (d+1)) ^ "then:\n" ^ (fmt exp2 (d+2)) ^ ",\n" ^ (prefix (d+1)) ^ "else:\n" ^ (fmt exp2 (d+2)) ^ ",\n" ^
            (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
              (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
@@ -651,7 +651,7 @@ module Translator = struct
            env,
            fenv',
            subst',
-           RRomenExp.RFn(fname, (r :: regvar_list), args, r_blk, (ty, eff))
+           RRomenExp.RFn(fname, (r :: regvar_list), args, r_blk, (ty, Effect.empty))
          )
     in
     let (env', fenv', subst', result) = walk basic TypeEnv.empty FuncEnv.empty Subst.empty in
