@@ -659,4 +659,6 @@ module Translator = struct
     result
 end
 
-(*Translator.translate (RomenExp.IntLit(30));;*)
+(*samples*)
+(* Translator.translate (RomenExp.Block[RomenExp.Fn("foo", ["a"; "b"], RomenExp.Block([RomenExp.Let("x", RomenExp.Var("a")); RomenExp.Var("x")])); RomenExp.If(RomenExp.BoolLit(true), RomenExp.Call("foo", [RomenExp.IntLit(12); RomenExp.IntLit(10)]), RomenExp.Call("foo", [RomenExp.BoolLit(true); RomenExp.IntLit(10)]))]) *)
+(* Translator.translate (RomenExp.IntLit(30)) *)
