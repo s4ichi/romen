@@ -266,6 +266,9 @@ module UnionBasis = struct
   let replace_place (ty : AnnotatedUnionType.t) (rv : RegVar.t) : AnnotatedUnionType.t =
     AnnotatedUnionType.map (fun e -> (AnnotatedType.simple_type e, rv)) ty
 
+  let ty_effect ty =
+    Effect.of_list (List.map (fun r -> AtomicEffect.ELit(r)) (places ty))
+
   let subst_simple_type ((st, sr, se) : Subst.t) (s : SimpleType.t) : SimpleTypeSet.t =
     match s with
     | SimpleType.TVar(t) -> if TyVarMap.mem t st
@@ -341,8 +344,10 @@ module VarStream = struct
   let b = ref 0
   let c = ref 0
 
-  let reset () =
-    a := 0; b := 0; c := 0; ()
+  let store () = (!a, !b, !c)
+
+  let reset (a', b', c') =
+    a := a'; b := b'; c := c'; ()
 
   let fresh_type_var () : TyVar.t =
     a := (!a) + 1; TyVar.new_var !a
@@ -490,6 +495,18 @@ end
 
 module Translator = struct
   let translate (basic : RomenExp.t) : RRomenExp.t =
+    let update_env env env' =
+      TypeEnv.merge (fun k xo yo -> match xo, yo with
+                                    | Some x, Some y -> Some(y)
+                                    | None, y -> None
+                                    | x, None -> xo
+                    ) env env' in
+    let merge_env env env' =
+      TypeEnv.merge (fun k xo yo -> match xo, yo with
+                                    | Some x, Some y -> Some(AnnotatedUnionType.union x y)
+                                    | None, y -> yo
+                                    | x, None -> xo
+                    ) env env' in
     let rec walk_list (list : RomenExp.t list) (env : type_env_type) (fenv : func_env_type) (subst : Subst.t)
             : (type_env_type * func_env_type * Subst.t * RRomenExp.t) list =
       match list with
@@ -526,11 +543,12 @@ module Translator = struct
          )
       | RomenExp.Var(s) ->
          let ty = TypeEnv.find s env in
+         let ty_eff = UnionBasis.ty_effect ty in
          (
            env,
            fenv,
            subst,
-           RRomenExp.RVar(s, (ty, Effect.empty)) (*ここempty違くない？ -> 元論文では空集合*)
+           RRomenExp.RVar(s, (ty, ty_eff)) (*ここempty違くない？ -> 元論文では空集合*)
          )
       | RomenExp.Op(exp1, exp2) ->
          let (env1, fenv1, subst1, rexp1) = walk exp1 env fenv subst in
@@ -551,24 +569,30 @@ module Translator = struct
            RRomenExp.ROp(rexp1, rexp2, (ty, eff'))
          )
       | RomenExp.While(cond, exp) ->
+         let store = VarStream.store () in
          let (env1, fenv1, subst1, cond') = walk cond env fenv subst in
          let (env2, fenv2, subst2, exp') = walk exp env1 fenv1 subst1 in
-         let subst3 = Subst.compose subst2 subst1 in
-         let ty = RRomenExp.annotated_union_type exp' in
+         let ext_env = (VarStream.reset store); merge_env env1 env2 in
+         let (ext_env', fenv3, subst3, cond'') = walk cond ext_env fenv subst in
+         let (ext_env'', fenv4, subst4, exp'') = walk exp ext_env' fenv3 subst3 in
+         let ext_env''' = merge_env env1 ext_env' in
+         let subst5 = Subst.compose subst4 subst3 in
+         let ty = RRomenExp.annotated_union_type exp'' in
          let ty' = UnionBasis.replace_place ty (VarStream.fresh_reg_var ()) in
          let rv' = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
          let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
-                                 (Effect.union (RRomenExp.effect cond') (RRomenExp.effect exp')) in
+                                 (Effect.union (RRomenExp.effect cond'') (RRomenExp.effect exp'')) in
         (
-           env2,
-           fenv2,
-           subst3,
-           RRomenExp.RWhile(cond', exp', (ty, eff'))
+           ext_env''',
+           fenv4,
+           subst5,
+           RRomenExp.RWhile(cond'', exp'', (ty, eff'))
          )
       | RomenExp.If(cond, exp1, exp2) ->
          let (env1, fenv1, subst1, rcond) = walk cond env fenv subst in
          let (env2, fenv2, subst2, rexp1) = walk exp1 env1 fenv1 subst1 in
          let (env3, fenv3, subst3, rexp2) = walk exp2 env2 fenv2 subst2 in
+         let env' = merge_env env1 env2 in
          let subst' = Subst.compose subst3 (Subst.compose subst1 subst2) in
          let cond_ty = RRomenExp.annotated_union_type rcond in
          let ty1 = RRomenExp.annotated_union_type rexp1 in
@@ -581,7 +605,7 @@ module Translator = struct
                                  (Effect.union (RRomenExp.effect rcond)
                                                (Effect.union  (RRomenExp.effect rexp1) (RRomenExp.effect rexp2))) in
          (
-           env3,
+           env',
            fenv3,
            subst',
            RRomenExp.RIf(rcond, rexp1, rexp2, (ty, eff'))
@@ -631,6 +655,7 @@ module Translator = struct
       | RomenExp.Block(exps) ->
          let exps' = walk_list exps env fenv subst in
          let (env', fenv', subst', tl_exp) = List.hd (List.rev exps') in
+         let env'' = update_env env env' in
          let ty = RRomenExp.annotated_union_type tl_exp in
          let ty' = if UnionBasis.include_t ty SimpleType.TAny
                    then UnionBasis.single_any_type
@@ -649,18 +674,26 @@ module Translator = struct
                         (fun a -> fun b -> RegVarSet.union b (AtomicEffect.frv a))
                         eff
                         RegVarSet.empty in
-         let env_fev = TypeEnv.fold
+         let old_env_fev = TypeEnv.fold
                          (fun k -> fun v -> fun set -> EffVarSet.union set (AnnotatedUnionType.fev v))
                          env
                          EffVarSet.empty in
-         let env_frv = TypeEnv.fold
+         let old_env_frv = TypeEnv.fold
                          (fun k -> fun v -> fun set -> RegVarSet.union set (AnnotatedUnionType.frv v))
                          env
                          RegVarSet.empty in
+         let env_fev = TypeEnv.fold
+                         (fun k -> fun v -> fun set -> EffVarSet.union set (AnnotatedUnionType.fev v))
+                         env''
+                         EffVarSet.empty in
+         let env_frv = TypeEnv.fold
+                         (fun k -> fun v -> fun set -> RegVarSet.union set (AnnotatedUnionType.frv v))
+                         env''
+                         RegVarSet.empty in
          let ty_fev = AnnotatedUnionType.fev ty' in
          let ty_frv = AnnotatedUnionType.frv ty' in
-         let composed_fev = EffVarSet.union env_fev ty_fev in
-         let composed_frv = RegVarSet.union env_frv ty_frv in
+         let composed_fev = EffVarSet.union old_env_fev (EffVarSet.union env_fev ty_fev) in
+         let composed_frv = RegVarSet.union old_env_frv (RegVarSet.union env_frv ty_frv) in
          let occur_fev = EffVarSet.diff eff_fev composed_fev in
          let occur_frv = RegVarSet.diff eff_frv composed_frv in
          let eff' = Effect.filter
@@ -678,7 +711,7 @@ module Translator = struct
          let exp' = RRomenExp.RBlock(r_exps, (ty', eff)) in
          let exp'' = RRomenExp.RReg(occur_frv, exp', (ty', eff'')) in
          (
-           env,
+           env'',
            fenv,
            subst',
            if RegVarSet.is_empty occur_frv
