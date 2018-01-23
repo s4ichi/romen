@@ -8,6 +8,7 @@ module RomenExp = struct
     | Var of ident
     | Op of t * t
     | If of t * t * t
+    | While of t * t
     | Call of ident * t list
     | Block of t list
     | Let of ident * t
@@ -360,6 +361,7 @@ module RRomenExp = struct
     | RBoolLit of bool * (AnnotatedUnionType.t * Effect.t)
     | RVar of ident * (AnnotatedUnionType.t * Effect.t)
     | ROp of t * t * (AnnotatedUnionType.t * Effect.t)
+    | RWhile of t * t * (AnnotatedUnionType.t * Effect.t)
     | RIf of t * t * t * (AnnotatedUnionType.t * Effect.t)
     | RCall of ident * RegVarSet.t list * t list * (AnnotatedUnionType.t * Effect.t)
     | RBlock of t list * (AnnotatedUnionType.t * Effect.t)
@@ -374,6 +376,7 @@ module RRomenExp = struct
     | RBoolLit (_, (t, _)) -> t
     | RVar (_, (t, _)) -> t
     | ROp (_, _, (t, _)) -> t
+    | RWhile (_, _, (t, _)) -> t
     | RIf (_, _, _, (t, _)) -> t
     | RCall (_, _, _, (t, _)) -> t
     | RBlock (_, (t, _)) -> t
@@ -388,6 +391,7 @@ module RRomenExp = struct
     | RBoolLit (_, (_, ef)) -> ef
     | RVar (_, (_, ef)) -> ef
     | ROp (_, _, (_, ef)) -> ef
+    | RWhile (_, _, (_, ef)) -> ef
     | RIf (_, _, _, (_, ef)) -> ef
     | RCall (_, _, _, (_, ef)) -> ef
     | RBlock (_, (_, ef)) -> ef
@@ -413,6 +417,10 @@ module RRomenExp = struct
     | ROp (exp1, exp2, (tp, eff)) ->
        (prefix d) ^ "ROp(\n" ^ (fmt exp1 (d+1)) ^ ",\n" ^ (fmt exp2 (d+1)) ^ ",\n" ^
          (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
+           (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
+    | RWhile (cond, exp, (tp, eff)) ->
+       (prefix d) ^ "RWhile(\n" ^ (prefix (d+1)) ^ "cond:\n" ^ (fmt cond (d+2)) ^ ",\n" ^
+         (prefix (d+1)) ^ "loop:\n" ^ (fmt exp (d+2)) ^ ",\n" ^ (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
            (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
     | RIf (cond, exp1, exp2, (tp, eff)) ->
        (prefix d) ^ "RIf(\n" ^ (prefix (d+1)) ^ "cond:\n" ^ (fmt cond (d+2)) ^ ",\n" ^
@@ -504,6 +512,21 @@ module Translator = struct
            fenv2,
            subst3,
            RRomenExp.ROp(rexp1, rexp2, (ty, eff'))
+         )
+      | RomenExp.While(cond, exp) ->
+         let (env1, fenv1, subst1, cond') = walk cond env fenv subst in
+         let (env2, fenv2, subst2, exp') = walk exp env1 fenv1 subst1 in
+         let subst3 = Subst.compose subst2 subst1 in
+         let ty = RRomenExp.annotated_union_type exp' in
+         let ty' = UnionBasis.replace_place ty (VarStream.fresh_reg_var ()) in (*ここいる？*)
+         let rv' = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
+         let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
+                                 (Effect.union (RRomenExp.effect cond') (RRomenExp.effect exp')) in
+        (
+           env2,
+           fenv2,
+           subst3,
+           RRomenExp.RWhile(cond', exp', (ty, eff'))
          )
       | RomenExp.If(cond, exp1, exp2) ->
          let (env1, fenv1, subst1, rcond) = walk cond env fenv subst in
