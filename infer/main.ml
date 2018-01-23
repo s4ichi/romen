@@ -449,6 +449,42 @@ module RRomenExp = struct
          (String.concat ", " args) ^ "),\n" ^ (fmt exp (d+1)) ^ "\n" ^
            (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
              (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
+
+  let rec fmt2 e d =
+    let fmt_places rs = " @ (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) (List.sort_uniq RegVar.compare rs))) ^ ")" in
+    let prefix k = String.make k '\t' in
+    match e with
+    | RIndefinite ((tp, eff)) ->
+       (prefix d) ^ "Indefinite" ^ (fmt_places (UnionBasis.places tp))
+    | RIntLit (i, (tp, eff)) ->
+       (prefix d) ^ (string_of_int i) ^ (fmt_places (UnionBasis.places tp))
+    | RBoolLit (b, (tp, eff)) ->
+       (prefix d) ^ (string_of_bool b) ^ (fmt_places (UnionBasis.places tp))
+    | RVar (s, (tp, eff)) ->
+       (prefix d) ^ s ^ (fmt_places (UnionBasis.places tp))
+    | ROp (exp1, exp2, (tp, eff)) ->
+       (prefix d) ^ "(" ^ (fmt2 exp1 0) ^ " biop " ^ (fmt2 exp2 0) ^ ")" ^ (fmt_places (UnionBasis.places tp))
+    | RWhile (cond, exp, (tp, eff)) ->
+       (prefix d) ^ "while(" ^ (fmt2 cond 0) ^ ") {\n" ^ (fmt2 exp (d+1)) ^ "\n" ^ (prefix d) ^ "} " ^ (fmt_places (UnionBasis.places tp))
+    | RIf (cond, exp1, exp2, (tp, eff)) ->
+       (prefix d) ^ "if (" ^ (fmt2 cond 0) ^ ")\n" ^
+         (prefix d) ^ "then (" ^ (fmt2 exp1 0) ^ ")\n" ^
+          (prefix d) ^ "else (" ^ (fmt2 exp2 0) ^ ")" ^ (fmt_places (UnionBasis.places tp))
+    | RCall (fn, rargs, args, (tp, eff)) ->
+       (prefix d) ^ (fn) ^ "<" ^
+         (String.concat ", " (List.map (fun rs -> "(" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) (RegVarSet.elements rs))) ^ ")") rargs)) ^
+           "> (" ^ (String.concat ", " (List.map (fun exp -> fmt2 exp 0) args)) ^ ")" ^ (fmt_places (UnionBasis.places tp))
+    | RBlock (exps, (tp, eff)) ->
+       (prefix d) ^ "{\n" ^ (String.concat "\n\n" (List.map (fun exp -> fmt2 exp (d+1)) exps)) ^ "\n" ^ (prefix d) ^ "}" ^
+         (fmt_places (UnionBasis.places tp))
+    | RReg (rargs, blk, (tp, eff)) ->
+       (prefix d) ^ "letregion<" ^ (String.concat ", " (List.map (fun rs -> RegVar.fmt rs) (RegVarSet.elements rargs))) ^ ">{\n" ^
+         (fmt2 blk (d+1)) ^ "\n" ^ (prefix d) ^ "}" ^ (fmt_places (UnionBasis.places tp))
+    | RLet (s, exp, (tp, eff)) ->
+       (prefix d) ^ (s) ^ " = " ^ (fmt2 exp 0) ^ (fmt_places (UnionBasis.places tp))
+    | RFn (fn, rargs, args, exp, (tp, eff)) ->
+       (prefix d) ^ "fn " ^ (fn) ^ "<" ^ (String.concat ", " (List.map (fun rs -> RegVar.fmt rs) rargs)) ^ "> (" ^
+         (String.concat ", " args) ^ ") {\n" ^ (fmt2 exp (d+1)) ^ "\n" ^ (prefix d) ^ "}"
 end
 
 module Translator = struct
@@ -518,7 +554,7 @@ module Translator = struct
          let (env2, fenv2, subst2, exp') = walk exp env1 fenv1 subst1 in
          let subst3 = Subst.compose subst2 subst1 in
          let ty = RRomenExp.annotated_union_type exp' in
-         let ty' = UnionBasis.replace_place ty (VarStream.fresh_reg_var ()) in (*ここいる？*)
+         let ty' = UnionBasis.replace_place ty (VarStream.fresh_reg_var ()) in
          let rv' = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
          let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
                                  (Effect.union (RRomenExp.effect cond') (RRomenExp.effect exp')) in
@@ -682,6 +718,7 @@ module Translator = struct
     in
     let (env', fenv', subst', result) = walk basic TypeEnv.empty FuncEnv.empty Subst.empty in
     print_string ((RRomenExp.fmt result 0) ^ "\n");
+    print_string ((RRomenExp.fmt2 result 0) ^ "\n");
     result
 end
 
