@@ -435,7 +435,7 @@ module RRomenExp = struct
            (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
              (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
     | RLet (s, exp, (tp, eff)) ->
-       (prefix d) ^ "RLet(" ^ (s) ^ ", " ^ (fmt exp 0) ^ ", (" ^ (AnnotatedUnionType.fmt tp) ^ "))"
+       (prefix d) ^ "RLet(" ^ (s) ^ ",\n" ^ (fmt exp (d+1)) ^ "\n" ^ (prefix d) ^ ", (" ^ (AnnotatedUnionType.fmt tp) ^ "))"
     | RFn (fn, rargs, args, exp, (tp, eff)) ->
        (prefix d) ^ "RFn(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), (" ^
          (String.concat ", " args) ^ "),\n" ^ (fmt exp (d+1)) ^ "\n" ^
@@ -495,11 +495,7 @@ module Translator = struct
          let ty2 = RRomenExp.annotated_union_type rexp2 in
          let ty = if (UnionBasis.include_t ty1 SimpleType.TAny) || (UnionBasis.include_t ty2 SimpleType.TAny)
                   then UnionBasis.single_any_type
-                  else (
-                    if AnnotatedUnionType.equal ty1 ty2
-                    then UnionBasis.replace_place ty1 (VarStream.fresh_reg_var ())
-                    else UnionBasis.single_any_type
-                  ) in
+                  else UnionBasis.replace_place (AnnotatedUnionType.union ty1 ty2) (VarStream.fresh_reg_var ()) in
          let rv' = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
          let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
                                  (Effect.union (RRomenExp.effect rexp1) (RRomenExp.effect rexp2)) in
