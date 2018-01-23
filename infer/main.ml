@@ -443,7 +443,8 @@ module RRomenExp = struct
            (prefix d) ^ "(" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
              (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
     | RLet (s, exp, (tp, eff)) ->
-       (prefix d) ^ "RLet(" ^ (s) ^ ",\n" ^ (fmt exp (d+1)) ^ "\n" ^ (prefix d) ^ ", (" ^ (AnnotatedUnionType.fmt tp) ^ "))"
+       (prefix d) ^ "RLet(" ^ (s) ^ ",\n" ^ (fmt exp (d+1)) ^ "\n" ^ (prefix d) ^ ", (" ^ (AnnotatedUnionType.fmt tp) ^ "), [" ^
+         (String.concat ", " (List.map (fun e -> AtomicEffect.fmt e) (Effect.elements eff))) ^ "])"
     | RFn (fn, rargs, args, exp, (tp, eff)) ->
        (prefix d) ^ "RFn(" ^ (fn) ^", (" ^ (String.concat ", " (List.map (fun r -> RegVar.fmt r) rargs)) ^ "), (" ^
          (String.concat ", " args) ^ "),\n" ^ (fmt exp (d+1)) ^ "\n" ^
