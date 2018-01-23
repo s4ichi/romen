@@ -467,7 +467,7 @@ module RRomenExp = struct
     | RBoolLit (b, (tp, eff)) ->
        (prefix d) ^ (string_of_bool b) ^ (fmt_places (UnionBasis.places tp))
     | RVar (s, (tp, eff)) ->
-       (prefix d) ^ s ^ (fmt_places (UnionBasis.places tp))
+       (prefix d) ^ s
     | ROp (exp1, exp2, (tp, eff)) ->
        (prefix d) ^ "(" ^ (fmt2 exp1 0) ^ " biop " ^ (fmt2 exp2 0) ^ ")" ^ (fmt_places (UnionBasis.places tp))
     | RWhile (cond, exp, (tp, eff)) ->
@@ -485,9 +485,9 @@ module RRomenExp = struct
          (fmt_places (UnionBasis.places tp))
     | RReg (rargs, blk, (tp, eff)) ->
        (prefix d) ^ "letregion<" ^ (String.concat ", " (List.map (fun rs -> RegVar.fmt rs) (RegVarSet.elements rargs))) ^ ">{\n" ^
-         (fmt2 blk (d+1)) ^ "\n" ^ (prefix d) ^ "}" ^ (fmt_places (UnionBasis.places tp))
+         (fmt2 blk (d+1)) ^ "\n" ^ (prefix d) ^ "}"
     | RLet (s, exp, (tp, eff)) ->
-       (prefix d) ^ (s) ^ " = " ^ (fmt2 exp 0) ^ (fmt_places (UnionBasis.places tp))
+       (prefix d) ^ (s) ^ " = " ^ (fmt2 exp 0)
     | RFn (fn, rargs, args, exp, (tp, eff)) ->
        (prefix d) ^ "fn " ^ (fn) ^ "<" ^ (String.concat ", " (List.map (fun rs -> RegVar.fmt rs) rargs)) ^ "> (" ^
          (String.concat ", " args) ^ ") {\n" ^ (fmt2 exp (d+1)) ^ "\n" ^ (prefix d) ^ "}"
