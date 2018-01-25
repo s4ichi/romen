@@ -461,15 +461,15 @@ module RRomenExp = struct
     let prefix k = String.make k '\t' in
     match e with
     | RIndefinite ((tp, eff)) ->
-       (prefix d) ^ "Indefinite" ^ (fmt_places (UnionBasis.places tp))
+       (prefix d) ^ "(Indefinite" ^ (fmt_places (UnionBasis.places tp)) ^ ")"
     | RIntLit (i, (tp, eff)) ->
-       (prefix d) ^ (string_of_int i) ^ (fmt_places (UnionBasis.places tp))
+       (prefix d) ^ "(" ^ (string_of_int i) ^ (fmt_places (UnionBasis.places tp)) ^ ")"
     | RBoolLit (b, (tp, eff)) ->
-       (prefix d) ^ (string_of_bool b) ^ (fmt_places (UnionBasis.places tp))
+       (prefix d) ^ "(" ^ (string_of_bool b) ^ (fmt_places (UnionBasis.places tp)) ^ ")"
     | RVar (s, (tp, eff)) ->
        (prefix d) ^ s
     | ROp (exp1, exp2, (tp, eff)) ->
-       (prefix d) ^ "(" ^ (fmt2 exp1 0) ^ " biop " ^ (fmt2 exp2 0) ^ ")" ^ (fmt_places (UnionBasis.places tp))
+       (prefix d) ^ "((" ^ (fmt2 exp1 0) ^ " biop " ^ (fmt2 exp2 0) ^ ")" ^ (fmt_places (UnionBasis.places tp)) ^ ")"
     | RWhile (cond, exp, (tp, eff)) ->
        (prefix d) ^ "while(" ^ (fmt2 cond 0) ^ ") {\n" ^ (fmt2 exp (d+1)) ^ "\n" ^ (prefix d) ^ "} " ^ (fmt_places (UnionBasis.places tp))
     | RIf (cond, exp1, exp2, (tp, eff)) ->
