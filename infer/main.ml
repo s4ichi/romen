@@ -651,7 +651,7 @@ module Translator = struct
                                        (Subst.compose pol_reg_subst
                                                       ((TyVarMap.empty, (RegVarMap.singleton r rv_single_set), EffVarMap.empty))) in
          let ty' = UnionBasis.replace_place (UnionBasis.subst pol_subst ty) rv in
-         let eff' = Effect.union r_eff (UnionBasis.subst_effect pol_subst pol_effect) in
+         let eff' = r_eff in
          let r_pol = List.map (fun reg -> UnionBasis.subst_place pol_subst reg) (rv :: pol_reg) in
          (*let r_pol = rv :: (List.map (fun arg -> RRomenExp.place arg) r_args) in*)
          inc ();
