@@ -624,10 +624,6 @@ module Translator = struct
          let pol_reg = AnnotatedTypeScheme.pol_reg ts in
          let pol_effect = AnnotatedTypeScheme.pol_effect ts in
          let r = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
-         let rv = if UnionBasis.include_t ty SimpleType.TAny
-                   then r
-                   else VarStream.fresh_reg_var () in
-         let rv_single_set = RegVarSet.singleton rv in
          let args' = walk_list args env fenv subst in
          let (env', fenv', subst', _) = List.hd (List.rev args') in
          let r_args = List.map (fun (_, _, _, rexp) -> rexp) args' in
@@ -635,6 +631,11 @@ module Translator = struct
                        (fun s -> fun r_arg -> Effect.union (RRomenExp.effect r_arg) s)
                        Effect.empty
                        r_args in
+         let rv = if (UnionBasis.include_t ty SimpleType.TAny) ||
+                       (List.exists (fun r_arg -> UnionBasis.include_t (RRomenExp.annotated_union_type r_arg) SimpleType.TAny) r_args)
+                  then RegVar.dynamic_var
+                  else VarStream.fresh_reg_var () in
+         let rv_single_set = RegVarSet.singleton rv in
          (* effect の unify も必要になってくる気がする -> 多相によってエフェクト変数生まれてから *)
          let pol_type_subst = List.fold_left2
                                      (fun a -> fun b -> fun c -> Subst.compose a ((TyVarMap.singleton b c), RegVarMap.empty, EffVarMap.empty))
