@@ -495,6 +495,8 @@ end
 
 module Translator = struct
   let translate (basic : RomenExp.t) : RRomenExp.t =
+    let cnt = ref 0 in
+    let inc () = cnt := (!cnt) + 1; print_string ("Allocate: " ^ (string_of_int (!cnt)) ^ "\n") in
     let update_env env env' =
       TypeEnv.merge (fun k xo yo -> match xo, yo with
                                     | Some x, Some y -> Some(y)
@@ -527,6 +529,7 @@ module Translator = struct
          )
       | RomenExp.IntLit(n) ->
          let rv = VarStream.fresh_reg_var () in
+         inc ();
          (
            env,
            fenv,
@@ -535,6 +538,7 @@ module Translator = struct
          )
       | RomenExp.BoolLit(b) ->
          let rv = VarStream.fresh_reg_var () in
+         inc ();
          (
            env,
            fenv,
@@ -562,7 +566,8 @@ module Translator = struct
          let rv' = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
          let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
                                  (Effect.union (RRomenExp.effect rexp1) (RRomenExp.effect rexp2)) in
-        (
+         inc ();
+         (
            env2,
            fenv2,
            subst3,
@@ -582,7 +587,8 @@ module Translator = struct
          let rv' = List.hd (UnionBasis.places ty) in (* 必ず要素は一つと信用して良い *)
          let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
                                  (Effect.union (RRomenExp.effect cond'') (RRomenExp.effect exp'')) in
-        (
+         inc ();
+         (
            ext_env''',
            fenv4,
            subst5,
@@ -604,6 +610,7 @@ module Translator = struct
          let eff' = Effect.union (Effect.singleton (AtomicEffect.ELit(rv')))
                                  (Effect.union (RRomenExp.effect rcond)
                                                (Effect.union  (RRomenExp.effect rexp1) (RRomenExp.effect rexp2))) in
+         inc ();
          (
            env',
            fenv3,
@@ -646,6 +653,7 @@ module Translator = struct
          let eff' = Effect.union r_eff (UnionBasis.subst_effect pol_subst pol_effect) in
          let r_pol = List.map (fun reg -> UnionBasis.subst_place pol_subst reg) (rv :: pol_reg) in
          (*let r_pol = rv :: (List.map (fun arg -> RRomenExp.place arg) r_args) in*)
+         inc ();
          (
            env',
            fenv',
@@ -710,6 +718,7 @@ module Translator = struct
                        ) eff' in
          let exp' = RRomenExp.RBlock(r_exps, (ty', eff)) in
          let exp'' = RRomenExp.RReg(occur_frv, exp', (ty', eff'')) in
+         inc ();
          (
            env'',
            fenv,
