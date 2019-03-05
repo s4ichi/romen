@@ -35,16 +35,16 @@ Note: This language is still a work-in-progress.
 The inference algorithm implemented by OCaml is in the `/infer/main.ml`.
 You can test the inference algorithm as interpreter.
 
-```
-cd infer && make && ./infer
+```console
+$ cd infer && make && ./infer
 ```
 
 ## Getting started
 
 Note: Current version able to only traverse AST and binding check.
 
-```sh
-make && ./bin/romen -v -e 'let x = 3; { fn hoge(a){ let k = a; }; let y = 2; let z = x + y; let g = 3; }'
+```console
+$ make && ./bin/romen -v -e 'let x = 3; { fn hoge(a){ let k = a; }; let y = 2; let z = x + y; let g = 3; }'
 ```
 
 ## LICENSE
