@@ -1,74 +1,49 @@
-# Memory safety language
+# Romen
 
-Specific implementation of memory safety language that is temporarily called 'Romen'.
-Romen is lightweight object oriented language, and has static memory inference module and tiny garbage collector.
+Example implementation of lightweight object oriented language that determines object lifetime statically.
 
-## Review ideas
+## Review ideas (for memory management)
 
 - Region based memory management
-- smart pointer
-- Substructual type system
-- and more
+- Region analysis
+- Garbage collection (when the region of object can't be analyzed)
 
-## Syntax[WIP]
-
-Syntax is still under consideration.
-`obj(a)` represents object that aliased to variable `a`.
-
+## Syntax (sample)
 
 ```
 {
-    // obj(g) = NULL
-    let g;
+      fn collatz(a) {
+          if a % 2 == 0
+          then a / 2
+          else a * 3 + 1
+      }
 
-    fn pow(a, b) {
-        // obj(a), obj(b) -> allocate stack
-        // obj(z) -> allocate heap
-        let z = a ** b
-        return z
+      n = 100
 
-        // free obj(a), obj(b)
-    }
+      while(n != 1) {
+          n = collatz(n)
+      }
 
-    {
-        // obj(x) -> allocate stack
-        // obj(y) -> allocate heap
-        let x = 10
-        let y = 5
-
-        // copy alias from y to g
-        g = &y
-
-        {
-            // obj(r) -> in heap
-            let r = pow(x, y)
-        }
-
-        // free obj(x)
-    }
+      n
 }
-
-// garbage collect obj(y) = obj(g), obj(r) at later
 ```
 
-## Build
+## Inference module
 
-Clone repository and run make to build:
+The inference algorithm implemented by OCaml is in the `/infer/main.ml`.
+You can test the inference algorithm as interpreter.
 
 ```
-make
+cd infer && make && ./infer
 ```
 
-## Run
+## Getting started
 
-Current version able to traverse AST and binding check.
+Note: Current version able to only traverse AST and binding check.
 
 ```sh
-./bin/romen -v -e 'let x = 3; { fn hoge(a){ let k = a; }; let y = 2; let z = x + y; let g = 3; }'
+make && ./bin/romen -v -e 'let x = 3; { fn hoge(a){ let k = a; }; let y = 2; let z = x + y; let g = 3; }'
 ```
 
 ## LICENSE
 MIT
-
-## Referrences
-wip
