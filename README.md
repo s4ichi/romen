@@ -8,6 +8,8 @@ Example implementation of lightweight object oriented language that determines o
 - Region analysis
 - Garbage collection (when the region of object can't be analyzed)
 
+Note: This language is still a work-in-progress.
+
 ## Syntax (sample)
 
 ```
